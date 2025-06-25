@@ -1,104 +1,206 @@
-/*
- * Operation: PROMETHEUS - Final Style
- * Buddy AI - The Soul Blueprint
- */
-
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
-    --bg-color: #f2f2f7;
-    --card-bg: rgba(255, 255, 255, 0.8);
+    --bg-color: #f7f8fc;
+    --pane-bg: #ffffff;
     --text-color-primary: #1d1d1f;
     --text-color-secondary: #6e6e73;
     --accent-color-blue: #007aff;
     --accent-color-red: #ff3b30;
-    --border-color: #dcdce1;
-    --switcher-bg: #e9e9f0;
+    --border-color: #e5e5ea;
+    --input-bg: #f0f0f5;
 }
 
 body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-family: 'Inter', sans-serif;
     background-color: var(--bg-color);
     color: var(--text-color-primary);
     margin: 0;
-    padding: 30px; /* パディングを増やす！ */
-    box-sizing: border-box;
-    min-height: 100vh;
 }
-/* 他の要素のパディングも微調整 */
-.container { max-width: 900px; margin: 20px auto; }
-header { margin-bottom: 30px; }
-header h1 { font-size: 2.5em; font-weight: 700; text-align: center; margin-top: 0; margin-bottom: 20px; }
-header h1 sub { font-size: 0.5em; font-weight: 500; color: var(--text-color-secondary); }
-#view-switcher { display: flex; justify-content: center; background-color: var(--switcher-bg); padding: 4px; border-radius: 8px; width: fit-content; margin: 0 auto; }
-#view-switcher button { padding: 8px 25px; border: none; background-color: transparent; color: var(--text-color-secondary); font-weight: 600; border-radius: 6px; cursor: pointer; transition: all 0.3s ease; font-size: 14px; }
-#view-switcher button.active { background-color: #fff; color: var(--text-color-primary); box-shadow: 0 3px 8px rgba(0,0,0,0.12), 0 3px 1px rgba(0,0,0,0.04); }
 
-/* --- Gemini AI Container --- */
-#gemini-container {
-    background-color: #fff;
-    padding: 25px; /* パディングをリッチに！ */
-    border-radius: 16px;
-    border: 1px solid var(--border-color);
-    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-    margin-top: 30px;
+#app-container {
+    display: flex;
+    height: 100vh;
 }
-#gemini-container h2 {
-    margin-top: 0;
-    margin-bottom: 15px;
-    font-size: 1.2em;
+
+/* Left Pane */
+#left-pane {
+    width: 380px;
+    flex-shrink: 0; /* サイドバーの幅を固定 */
+    background-color: var(--pane-bg);
+    border-right: 1px solid var(--border-color);
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+}
+
+header h1 { font-size: 1.8em; font-weight: 700; }
+header h1 sub { font-size: 0.6em; color: var(--text-color-secondary); }
+
+#task-form, #ai-generator { display: flex; flex-direction: column; gap: 15px; }
+#task-form h2 { font-size: 1.2em; margin: 0 0 5px 0; }
+
+#task-form input, #task-form button, #ai-generator textarea, #ai-generator button {
+    width: 100%;
+    padding: 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    font-size: 1em;
+    box-sizing: border-box;
+}
+
+#task-form input, #ai-generator textarea { background-color: var(--input-bg); }
+#task-form button, #gemini-trigger-btn { background-color: var(--accent-color-blue); color: #fff; font-weight: 600; cursor: pointer; }
+#ai-toggle-btn { background-color: transparent; color: var(--accent-color-blue); font-weight: 600; text-align: center; cursor: pointer; }
+
+/* Right Pane */
+#right-pane {
+    flex-grow: 1;
+    padding: 40px;
+    overflow-y: auto;
+    display: flex; /* 追加 */
+    flex-direction: column; /* 追加 */
+}
+
+#view-switcher { display: flex; justify-content: flex-end; margin-bottom: 20px; }
+#view-switcher button { padding: 8px 20px; border: 1px solid var(--border-color); background: transparent; color: var(--text-color-secondary); cursor: pointer; }
+#view-switcher button:first-child { border-radius: 8px 0 0 8px; }
+#view-switcher button:last-child { border-radius: 0 8px 8px 0; border-left: none; }
+#view-switcher button.active { background: var(--accent-color-blue); color: #fff; border-color: var(--accent-color-blue); }
+
+#list-view { /* 追加 */
+    flex-grow: 1;
+    overflow-y: auto;
+}
+
+#task-list-container { display: grid; grid-template-columns: 1fr; gap: 15px; }
+.task-card {
+    background: var(--pane-bg);
+    border: 1px solid var(--border-color);
+    border-left: 4px solid var(--accent-color-blue);
+    border-radius: 8px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.task-card.completed { border-left-color: #a0a0a0; }
+.task-card.completed .task-text { text-decoration: line-through; color: var(--text-color-secondary); }
+
+#calendar-view { 
+    background-color: var(--pane-bg); 
+    border-radius: 12px; 
+    padding: 20px; 
+    border: 1px solid var(--border-color); 
+    flex-grow: 1; /* 追加 */
+    display: flex; /* 追加 */
+    flex-direction: column; /* 追加 */
+}
+
+#calendar-container { /* 追加 */
+    flex-grow: 1;
+}
+
+/* Spinner */
+.loading-indicator { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.spinner { width: 18px; height: 18px; border: 2px solid rgba(255, 255, 255, 0.3); border-top-color: #fff; border-radius: 50%; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Task Card Footer */
+.task-footer { display: flex; justify-content: space-between; align-items: center; }
+.task-due-date { font-size: 0.9em; color: var(--text-color-secondary); }
+.task-actions button { font-size: 0.8em; padding: 5px 10px; border-radius: 5px; cursor: pointer; }
+.complete-btn { background-color: #e0e0e0; border: 1px solid #ccc; }
+.delete-btn { background-color: var(--accent-color-red); color: #fff; border: 1px solid var(--accent-color-red); }
+.task-card.completed .complete-btn { background-color: #d0f0c0; }
+
+/* --- FullCalendar Customization --- */
+
+#calendar-container .fc {
+    border: none; /* Remove default border */
+}
+
+/* Toolbar */
+#calendar-container .fc-header-toolbar {
+    margin-bottom: 1.5em !important; /* Add !important to ensure override */
+}
+
+#calendar-container .fc-toolbar-title {
+    font-size: 1.7em;
+    font-weight: 600;
     color: var(--text-color-primary);
 }
-#gemini-container textarea {
-    width: 100%;
-    min-height: 80px;
-    padding: 14px;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    background-color: #f2f2f7;
-    font-size: 16px;
-    font-family: inherit;
-    resize: vertical;
-    box-sizing: border-box;
-    margin-bottom: 15px;
-}
-#gemini-container button {
-    width: 100%;
-    padding: 14px 20px;
-    border: none;
-    background-color: var(--accent-color-blue);
-    color: #fff;
-    font-weight: 600;
-    cursor: pointer;
-    border-radius: 8px;
+
+#calendar-container .fc-button,
+#calendar-container .fc-button-primary {
+    background-color: var(--pane-bg) !important;
+    border: 1px solid var(--border-color) !important;
+    color: var(--text-color-secondary) !important;
+    box-shadow: none !important;
     transition: all 0.2s ease;
-    font-size: 16px;
 }
-#gemini-container button:hover { background-color: #0056b3; }
-#gemini-container button:disabled { background-color: #a9a9a9; cursor: not-allowed; }
 
-/* --- Form --- */
-#task-form { display: flex; flex-wrap: wrap; gap: 15px; margin-top: 30px; background-color: #fff; padding: 25px; border-radius: 12px; border: 1px solid var(--border-color); box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
-#task-form input { flex: 1 1 300px; padding: 14px; border: 1px solid var(--border-color); border-radius: 8px; background-color: #f2f2f7; color: var(--text-color-primary); font-size: 16px; font-weight: 500; }
-#task-form button { flex-basis: 150px; padding: 14px 20px; border: none; background-color: var(--accent-color-blue); color: #fff; font-weight: 600; cursor: pointer; border-radius: 8px; font-size: 16px; }
+#calendar-container .fc-button:hover,
+#calendar-container .fc-button-primary:hover {
+    background-color: var(--input-bg) !important;
+    border-color: #c8c8c8 !important;
+}
 
-/* --- Task List --- */
-#task-list-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
-.task-card { background: var(--card-bg); border: 1px solid rgba(0,0,0,0.05); border-radius: 16px; padding: 25px; display: flex; flex-direction: column; gap: 15px; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1); backdrop-filter: blur(12px); }
-.task-card.completed { opacity: 0.7; }
-.task-card.completed .task-text { text-decoration: line-through; color: var(--text-color-secondary); }
-.task-text { font-size: 1.1em; font-weight: 600; line-height: 1.5; word-break: break-word; flex-grow: 1; }
-.task-footer { display: flex; justify-content: space-between; align-items: center; font-size: 0.9em; color: var(--text-color-secondary); padding-top: 15px; margin-top: auto; }
-.task-due-date { font-weight: 500; }
-.task-actions { display: flex; gap: 10px; }
-.task-actions button { background-color: transparent; border: none; color: var(--accent-color-blue); padding: 5px; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: 600; }
-.task-actions .delete-btn { color: var(--accent-color-red); }
+#calendar-container .fc-button-primary:not(:disabled).fc-button-active,
+#calendar-container .fc-button-primary:not(:disabled):active {
+    background-color: var(--accent-color-blue) !important;
+    border-color: var(--accent-color-blue) !important;
+    color: #fff !important;
+}
 
-/* --- Calendar View --- */
-#calendar-view { background-color: #fff; padding: 25px; border-radius: 16px; border: 1px solid var(--border-color); box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
-:root { --fc-border-color: var(--border-color); --fc-today-bg-color: rgba(0, 122, 255, 0.1); --fc-event-bg-color: var(--accent-color-blue); --fc-event-border-color: var(--accent-color-blue); }
-.fc .fc-toolbar-title { font-size: 1.5em !important; font-weight: 600 !important; }
-.fc .fc-button { background-color: var(--switcher-bg) !important; border: none !important; color: var(--text-color-secondary) !important; font-weight: 500 !important; box-shadow: none !important; }
-.fc .fc-daygrid-day.fc-day-today { background-color: var(--fc-today-bg-color); }
-.fc-event { border-radius: 4px !important; padding: 3px 5px !important; font-weight: 500 !important; cursor: pointer; }
-.fc-event-main { color: white !important; }
+/* Today button style */
+#calendar-container .fc-today-button {
+    font-weight: 600;
+}
+
+/* View Cells */
+#calendar-container .fc-daygrid-day-frame {
+    border-radius: 8px;
+    transition: background-color 0.2s ease;
+}
+
+#calendar-container .fc-daygrid-day:hover .fc-daygrid-day-frame {
+    background-color: rgba(0, 123, 255, 0.05);
+}
+
+#calendar-container .fc-day-today .fc-daygrid-day-frame {
+    background-color: rgba(0, 123, 255, 0.1);
+}
+
+#calendar-container .fc-daygrid-day-number {
+    padding: 8px;
+    font-weight: 500;
+}
+
+/* Events */
+#calendar-container .fc-daygrid-event {
+    border-radius: 5px;
+    padding: 4px 8px;
+    font-size: 0.9em;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+#calendar-container .fc-daygrid-event:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+}
+
+/* Completed Event Style */
+#calendar-container .completed-event {
+    background-color: #e9ecef !important;
+    border-color: #e9ecef !important;
+}
+
+#calendar-container .completed-event .fc-event-title {
+    text-decoration: line-through;
+    color: var(--text-color-secondary) !important;
+}

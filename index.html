@@ -12,40 +12,50 @@
 </head>
 <body>
 
-    <div class="container">
-        <header>
-            <h1>CHRONO-HACKER <sub>Prometheus</sub></h1>
+    <div id="app-container">
+        <!-- Left Pane: Controls -->
+        <div id="left-pane">
+            <header>
+                <h1>PLINY <sub>Prometheus</sub></h1>
+            </header>
+
+            <form id="task-form">
+                <h2>新しいタスク</h2>
+                <input type="text" id="task-input" placeholder="タスクの内容を入力..." required>
+                <input type="text" id="task-due-date" placeholder="期間を選択 (開始日〜終了日)" required>
+                <button type="submit">登録する</button>
+            </form>
+
+            <div id="ai-generator">
+                <button type="button" id="ai-toggle-btn">AIでタスクを生成 ✨</button>
+                <div id="ai-content" style="display: none;">
+                    <textarea id="gemini-prompt" placeholder="例: 来週はプロジェクトAの最終調整。月曜と火曜にデザイン修正。水曜にクライアントに提出。"></textarea>
+                    <button id="gemini-trigger-btn">
+                        <span class="default-text">生成する</span>
+                        <div class="loading-indicator" style="display: none;">
+                            <div class="spinner"></div>
+                            <span>生成中...</span>
+                        </div>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Pane: Content -->
+        <div id="right-pane">
             <div id="view-switcher">
                 <button id="show-list-btn" class="active">リスト</button>
                 <button id="show-calendar-btn">カレンダー</button>
             </div>
-        </header>
-        
-        <!-- ▼▼▼ ここからが新しい祭壇だ！ ▼▼▼ -->
-        <div id="gemini-container">
-            <h2>AI自動タスク生成</h2>
-            <textarea id="gemini-prompt" placeholder="例: 来週はプロジェクトAの最終調整。月曜と火曜にデザイン修正。水曜にクライアントに提出。金曜は予備日。"></textarea>
-            <button id="gemini-trigger-btn">
-                <span class="default-text">Geminiに依頼</span>
-                <span class="loading-text" style="display: none;">生成中...</span>
-            </button>
+
+            <main id="list-view">
+                <div id="task-list-container"></div>
+            </main>
+            
+            <main id="calendar-view" style="display: none;">
+                <div id="calendar-container"></div>
+            </main>
         </div>
-        <!-- ▲▲▲ ここまで ▲▲▲ -->
-        
-        <form id="task-form">
-            <input type="text" id="task-input" placeholder="新しいミッションの内容..." required>
-            <!-- ▼▼▼ プレースホルダーを更新！ ▼▼▼ -->
-            <input type="text" id="task-due-date" placeholder="期間を選択 (開始日〜終了日)" required>
-            <button type="submit">ミッション登録</button>
-        </form>
-        
-        <main id="list-view">
-            <div id="task-list-container"></div>
-        </main>
-        
-        <main id="calendar-view" style="display: none;">
-            <div id="calendar-container"></div>
-        </main>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
