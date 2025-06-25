@@ -42,7 +42,7 @@ flatpickr(taskDueDateInput, {
 // FullCalendarの初期化
 const initializeCalendar = () => {
     calendar = new FullCalendar.Calendar(calendarContainer, {
-        initialView: 'dayGridMonth',
+        initialView: window.innerWidth < 768 ? 'listWeek' : 'dayGridMonth',
         locale: 'ja',
         headerToolbar: {
             left: 'prev,next today',
@@ -50,7 +50,15 @@ const initializeCalendar = () => {
             right: 'dayGridMonth,timeGridWeek,listWeek'
         },
         height: '100%', // コンテナの高さに合わせる
-        events: []
+        events: [],
+        windowResize: function(arg) {
+            if (window.innerWidth < 768) {
+                // If calendar is visible, switch to list view
+                if (calendarView.style.display !== 'none') {
+                    showListBtn.click();
+                }
+            } 
+        }
     });
     calendar.render();
 };

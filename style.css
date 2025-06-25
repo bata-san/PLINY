@@ -204,3 +204,51 @@ header h1 sub { font-size: 0.6em; color: var(--text-color-secondary); }
     text-decoration: line-through;
     color: var(--text-color-secondary) !important;
 }
+
+/* --- Responsive Design --- */
+@media (max-width: 992px) {
+    #app-container {
+        flex-direction: column;
+        height: auto;
+    }
+
+    #left-pane {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid var(--border-color);
+        padding: 20px;
+        gap: 25px;
+        box-sizing: border-box;
+    }
+
+    #right-pane {
+        padding: 20px;
+        overflow-y: initial;
+    }
+
+    header h1 {
+        font-size: 1.6em;
+    }
+}
+
+@media (max-width: 767px) {
+    #show-calendar-btn {
+        display: none;
+    }
+    #show-list-btn {
+        border-radius: 8px;
+    }
+}
+
+@media (max-width: 480px) {
+    #task-form {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .task-footer {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+}
