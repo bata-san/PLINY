@@ -3,20 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Operation: CHRONO-HACKER</title>
+    <title>CHRONO-HACKER // Prometheus</title>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.9/index.global.min.js'></script>
     <link rel="stylesheet" href="style.css">
+
 </head>
 <body>
+
     <div class="container">
-        <h1>Operation: CHRONO-HACKER</h1>
+        <header>
+            <h1>CHRONO-HACKER <sub>Prometheus</sub></h1>
+            <div id="view-switcher">
+                <button id="show-list-btn" class="active">リスト</button>
+                <button id="show-calendar-btn">カレンダー</button>
+            </div>
+        </header>
+        
+        <!-- ▼▼▼ ここからが新しい祭壇だ！ ▼▼▼ -->
+        <div id="gemini-container">
+            <h2>AI自動タスク生成</h2>
+            <textarea id="gemini-prompt" placeholder="例: 来週はプロジェクトAの最終調整。月曜と火曜にデザイン修正。水曜にクライアントに提出。金曜は予備日。"></textarea>
+            <button id="gemini-trigger-btn">
+                <span class="default-text">Geminiに依頼</span>
+                <span class="loading-text" style="display: none;">生成中...</span>
+            </button>
+        </div>
+        <!-- ▲▲▲ ここまで ▲▲▲ -->
+        
         <form id="task-form">
-            <input type="text" id="task-input" placeholder="新しいミッションを追加..." required>
-            <button type="submit">ミッション追加！</button>
+            <input type="text" id="task-input" placeholder="新しいミッションの内容..." required>
+            <!-- ▼▼▼ プレースホルダーを更新！ ▼▼▼ -->
+            <input type="text" id="task-due-date" placeholder="期間を選択 (開始日〜終了日)" required>
+            <button type="submit">ミッション登録</button>
         </form>
-        <ul id="task-list">
-            <!-- ここにミッションが追加される -->
-        </ul>
+        
+        <main id="list-view">
+            <div id="task-list-container"></div>
+        </main>
+        
+        <main id="calendar-view" style="display: none;">
+            <div id="calendar-container"></div>
+        </main>
     </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://npmcdn.com/flatpickr/dist/l10n/ja.js"></script>
     <script src="script.js"></script>
+
 </body>
 </html>
