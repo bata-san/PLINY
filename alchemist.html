@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Project: PROMETHEUS</title>
     <style>
-        /* デザインは、お前が最高と言ってくれた"AETHERIUS"と同じだ。ここはもう完璧だ。 */
+        /* デザインは変更なし。ここはお前のお墨付きだ。 */
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap');
         :root { --bg: #1a1a1a; --surface: #242424; --text-primary: #f0f0f0; --text-secondary: #aaaaaa; --border: #444444; --primary: #6c63ff; --success: #4caf50; --danger: #f44336; --font-main: 'Noto Sans JP', sans-serif; }
         body { font-family: var(--font-main); background-color: var(--bg); color: var(--text-primary); margin: 0; padding: 20px; font-size: 16px; display: flex; align-items: center; justify-content: center; min-height: 100vh;}
@@ -45,9 +45,9 @@
         </div>
     </div>
 <script>
-// === Project: PROMETHEUS - Core Logic (改) ===
-// CORSの壁をブチ破り、神々の火を手に入れる。
+// === Project: PROMETHEUS - Core Logic (真・完全最終版) ===
 
+// このイベントリスナーの中ですべてのコードを動かす。これが鉄則だ。
 document.addEventListener('DOMContentLoaded', () => {
     // --- ★★★最重要設定★★★ ---
     const BIN_ID = 'https://api.jsonbin.io/v3/b/685bf2288960c979a5b12271';
@@ -55,34 +55,23 @@ document.addEventListener('DOMContentLoaded', () => {
     // -------------------------
 
     const API_ENDPOINT = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
-    // CORSの壁を突破するための、正しいヘッダー設定だ！
     const baseHeaders = {
         'Content-Type': 'application/json',
         'X-Master-Key': MASTER_KEY,
-        // 'X-Access-Key' は読み取り専用。ここではマスターキーで全部やるから不要だが、
-        // 厳密なセキュリティが必要なら、読み取りだけはこっちを使う。
     };
 
     const form = document.getElementById('task-input-form');
     const taskListEl = document.getElementById('task-list');
     const addBtn = document.getElementById('add-task-btn');
     
-    let tasks = []; // ローカルにキャッシュするタスクデータ
+    let tasks = []; 
 
-    // ★★★★★★ ここが今回の”火”だ！ ★★★★★★★
-    // fetchのラッパー関数。通信処理を全部こいつに任せる。
+    // 通信処理をまとめるラッパー関数（変更なし、こいつは優秀だ）
     const apiCall = async (method, data = null) => {
         const url = (method === 'GET') ? `${API_ENDPOINT}/latest` : API_ENDPOINT;
         const headers = {...baseHeaders};
-
-        const config = {
-            method: method,
-            headers: headers
-        };
-        // GETリクエスト以外は、リクエストボディにデータを含める
-        if (data) {
-            config.body = JSON.stringify(data);
-        }
+        const config = { method: method, headers: headers };
+        if (data) { config.body = JSON.stringify(data); }
 
         addBtn.classList.add('loading');
         addBtn.disabled = true;
@@ -90,27 +79,24 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch(url, config);
             if (!response.ok) {
-                // エラーレスポンスの本文を読んで、何が起きたか知らせる
                 const errorBody = await response.text();
                 throw new Error(`API通信に失敗: Status ${response.status} - ${errorBody}`);
             }
-            // データを返す必要がないメソッドもある（PUTやDELETEなど）
             if (response.headers.get("content-type")?.includes("application/json")) {
                 return await response.json();
             }
             return { success: true };
-
         } catch (error) {
             console.error("API呼び出しエラー:", error);
             alert(`オンラインとの同期に失敗した。\nエラー: ${error.message}\nキーやIDが正しいか確認してくれ。`);
-            throw error; // エラーを呼び出し元に伝える
+            throw error;
         } finally {
             addBtn.classList.remove('loading');
             addBtn.disabled = false;
         }
     };
 
-    // UIを再描画する関数（変更なし）
+    // UIを再描画する関数
     const render = () => {
         tasks.sort((a, b) => (a.completed - b.completed) || (a.dueDate || '9999-99-99').localeCompare(b.dueDate || '9999-99-99'));
         taskListEl.innerHTML = '';
@@ -136,11 +122,25 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
     
-    // アプリケーション起動時のデータ取得
+    // ★★★ 修正ポイント１：正しく機能するescapeHTML関数 ★★★
+    // 悪意のあるコードの入力を無害化する、真の「盾」だ。
+    function escapeHTML(str) {
+        if (!str) return '';
+        return str.replace(/[&<>"']/g, function(match) {
+            return {
+                '&': '&',
+                '<': '<',
+                '>': '>',
+                '"': '"',
+                "'": '''
+            }[match];
+        });
+    }
+    
+    // アプリ起動時のデータ取得
     const initializeApp = async () => {
         try {
             const data = await apiCall('GET');
-            // JSONBin.ioのGETは{record: [...], metadata: {...}}の形で返ってくる
             tasks = data.record || [];
             render();
         } catch(error) {
@@ -153,11 +153,14 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         const contentInput = document.getElementById('task-content');
         const dueDateInput = document.getElementById('task-due-date');
-        if (!contentInput.value.trim()) return;
-
+        const content = contentInput.value.trim();
+        if (!content) return;
+        
+        // ローカルの配列をまず更新
+        const originalTasks = [...tasks];
         tasks.push({
             id: Date.now().toString(),
-            content: contentInput.value,
+            content: content,
             dueDate: dueDateInput.value || null,
             completed: false
         });
@@ -168,8 +171,8 @@ document.addEventListener('DOMContentLoaded', () => {
             dueDateInput.value = '';
             render();
         } catch (error) {
-            // エラーが出たら、追加したタスクを元に戻す
-            tasks.pop(); 
+            tasks = originalTasks; // エラーが出たら、ローカルのタスクリストを元に戻す
+            alert("タスクの追加に失敗した…");
         }
     });
     
@@ -177,11 +180,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const li = e.target.closest('.task-item');
         if (!li) return;
         const id = li.dataset.id;
+
+        const originalTasks = JSON.parse(JSON.stringify(tasks)); // 失敗に備えてディープコピー
         const taskIndex = tasks.findIndex(t => t.id === id);
         if (taskIndex === -1) return;
-
+        
         let changed = false;
-        let originalTaskState = {...tasks[taskIndex]}; // 失敗した時用に元の状態を保存
 
         if (e.target.type === 'checkbox') {
             tasks[taskIndex].completed = e.target.checked;
@@ -197,14 +201,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 await apiCall('PUT', tasks);
                 render();
             } catch (error) {
-                // エラーが出たら、ローカルのタスクリストを元の状態に戻す
-                tasks.splice(taskIndex, 0, originalTaskState);
+                tasks = originalTasks; // エラーが出たら元に戻す
+                alert("タスクの更新に失敗した…");
+                render();
             }
         }
     });
 
-    function escapeHTML(str) { return str.replace(/[&<>"']/g, m=>({'&':'&','<':'<','>':'>','"':'"',"'":'''}[m]));}
-    
+    // ★★★ 修正ポイント２：正しい場所からの呼び出し ★★★
     initializeApp();
 });
 </script>
