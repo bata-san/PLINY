@@ -1,8 +1,8 @@
 // ===============================================
 // 相棒、この２つを書き換えてくれ！
 // ===============================================
-const API_KEY = 'お前が手に入れたAPIキーをここに！'; 
-const BIN_ID = 'お前が作ったBinのIDをここに！';
+const API_KEY = '685bfb988561e97a502b9056'; 
+const BIN_ID = '$2a$10$l.shMPQkZut9GF8QmO5kjuUe5EuHpRA4sATqrlfXG.lNjF1n0clg.';
 // ===============================================
 
 const API_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
