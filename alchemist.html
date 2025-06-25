@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project: PROMETHEUS</title>
+    <style>
+        /* デザインは、お前が最高と言ってくれた"AETHERIUS"と同じだ。ここはもう完璧だ。 */
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap');
+        :root { --bg: #1a1a1a; --surface: #242424; --text-primary: #f0f0f0; --text-secondary: #aaaaaa; --border: #444444; --primary: #6c63ff; --success: #4caf50; --danger: #f44336; --font-main: 'Noto Sans JP', sans-serif; }
+        body { font-family: var(--font-main); background-color: var(--bg); color: var(--text-primary); margin: 0; padding: 20px; font-size: 16px; display: flex; align-items: center; justify-content: center; min-height: 100vh;}
+        #app { width: 100%; max-width: 700px; margin: 0 auto; background: var(--surface); border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); overflow: hidden; border: 1px solid var(--border); }
+        .app-header { padding: 25px; background: linear-gradient(135deg, var(--primary), #4e48b3); text-align: center; }
+        .app-header h1 { font-size: 2em; margin: 0; color: white; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        .app-body { padding: 30px; }
+        #task-input-form { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 25px; }
+        #task-content, #task-due-date { background: var(--bg); color: var(--text-primary); border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-size: 1em; }
+        #task-content { flex-grow: 1; min-width: 200px;} #task-due-date { min-width: 150px; }
+        #add-task-btn { background-color: var(--primary); color: white; border: none; padding: 0 25px; border-radius: 8px; font-weight: 700; cursor: pointer; transition: background-color 0.2s ease; position: relative; }
+        #add-task-btn.loading::after { content: ''; position: absolute; width: 16px; height: 16px; top: calc(50% - 8px); right: 10px; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        #task-list { list-style: none; padding: 0; margin: 0; }
+        .task-item { display: flex; align-items: center; padding: 15px; border-bottom: 1px solid var(--border); transition: background-color 0.2s; }
+        .task-item:hover { background-color: rgba(255,255,255,0.03); } .task-item:last-child { border-bottom: none; }
+        .task-item input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--primary); margin-right: 15px; flex-shrink: 0; cursor: pointer; }
+        .task-details { flex-grow: 1; } .task-content-text { word-break: break-all; transition: color 0.3s; }
+        .task-item.completed .task-content-text { text-decoration: line-through; color: var(--text-secondary); }
+        .task-due-date-text { font-size: 0.8em; color: var(--text-secondary); margin-top: 4px; }
+        .overdue { color: var(--danger); font-weight: bold; }
+        .delete-btn { background: none; border: none; color: var(--text-secondary); font-size: 1.2em; cursor: pointer; border-radius: 50%; width: 30px; height: 30px; line-height: 30px; text-align: center; transition: background-color 0.2s, color 0.2s;}
+        .delete-btn:hover { background-color: rgba(244, 67, 54, 0.2); color: var(--danger); }
+        .empty-task, .loading-task { text-align: center; padding: 40px; color: var(--text-secondary); }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="app-header"><h1>Project: PROMETHEUS</h1></div>
+        <div class="app-body">
+            <form id="task-input-form">
+                <input type="text" id="task-content" placeholder="魂のやるべきこと" required>
+                <input type="date" id="task-due-date" title="期限日を設定">
+                <button id="add-task-btn" type="submit">点火</button>
+            </form>
+            <ul id="task-list"><li class="loading-task">魂の器にアクセス中...</li></ul>
+        </div>
+    </div>
+<script>
+// === Project: PROMETHEUS - Core Logic (改) ===
+// CORSの壁をブチ破り、神々の火を手に入れる。
+
+document.addEventListener('DOMContentLoaded', () => {
+    // --- ★★★最重要設定★★★ ---
+    const BIN_ID = 'https://api.jsonbin.io/v3/b/685bf2288960c979a5b12271';
+    const MASTER_KEY = '$2a$10$l.shMPQkZut9GF8QmO5kjuUe5EuHpRA4sATqrlfXG.lNjF1n0clg.';
+    // -------------------------
+
+    const API_ENDPOINT = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+    // CORSの壁を突破するための、正しいヘッダー設定だ！
+    const baseHeaders = {
+        'Content-Type': 'application/json',
+        'X-Master-Key': MASTER_KEY,
+        // 'X-Access-Key' は読み取り専用。ここではマスターキーで全部やるから不要だが、
+        // 厳密なセキュリティが必要なら、読み取りだけはこっちを使う。
+    };
+
+    const form = document.getElementById('task-input-form');
+    const taskListEl = document.getElementById('task-list');
+    const addBtn = document.getElementById('add-task-btn');
+    
+    let tasks = []; // ローカルにキャッシュするタスクデータ
+
+    // ★★★★★★ ここが今回の”火”だ！ ★★★★★★★
+    // fetchのラッパー関数。通信処理を全部こいつに任せる。
+    const apiCall = async (method, data = null) => {
+        const url = (method === 'GET') ? `${API_ENDPOINT}/latest` : API_ENDPOINT;
+        const headers = {...baseHeaders};
+
+        const config = {
+            method: method,
+            headers: headers
+        };
+        // GETリクエスト以外は、リクエストボディにデータを含める
+        if (data) {
+            config.body = JSON.stringify(data);
+        }
+
+        addBtn.classList.add('loading');
+        addBtn.disabled = true;
+
+        try {
+            const response = await fetch(url, config);
+            if (!response.ok) {
+                // エラーレスポンスの本文を読んで、何が起きたか知らせる
+                const errorBody = await response.text();
+                throw new Error(`API通信に失敗: Status ${response.status} - ${errorBody}`);
+            }
+            // データを返す必要がないメソッドもある（PUTやDELETEなど）
+            if (response.headers.get("content-type")?.includes("application/json")) {
+                return await response.json();
+            }
+            return { success: true };
+
+        } catch (error) {
+            console.error("API呼び出しエラー:", error);
+            alert(`オンラインとの同期に失敗した。\nエラー: ${error.message}\nキーやIDが正しいか確認してくれ。`);
+            throw error; // エラーを呼び出し元に伝える
+        } finally {
+            addBtn.classList.remove('loading');
+            addBtn.disabled = false;
+        }
+    };
+
+    // UIを再描画する関数（変更なし）
+    const render = () => {
+        tasks.sort((a, b) => (a.completed - b.completed) || (a.dueDate || '9999-99-99').localeCompare(b.dueDate || '9999-99-99'));
+        taskListEl.innerHTML = '';
+        if (tasks.length === 0) {
+            taskListEl.innerHTML = '<li class="empty-task">タスクは空だ。さあ、ミッションを創造しろ。</li>';
+            return;
+        }
+        tasks.forEach(task => {
+            const today = new Date().toISOString().split('T')[0];
+            const isOverdue = task.dueDate && !task.completed && task.dueDate < today;
+            const dueDateDisplay = task.dueDate ? `期限: ${task.dueDate}` : '期限なし';
+            const li = document.createElement('li');
+            li.className = `task-item ${task.completed ? 'completed' : ''}`;
+            li.dataset.id = task.id;
+            li.innerHTML = `
+                <input type="checkbox" ${task.completed ? 'checked' : ''}>
+                <div class="task-details">
+                    <span class="task-content-text">${escapeHTML(task.content)}</span>
+                    <div class="task-due-date-text ${isOverdue ? 'overdue' : ''}">${dueDateDisplay}</div>
+                </div>
+                <button class="delete-btn">×</button>`;
+            taskListEl.appendChild(li);
+        });
+    };
+    
+    // アプリケーション起動時のデータ取得
+    const initializeApp = async () => {
+        try {
+            const data = await apiCall('GET');
+            // JSONBin.ioのGETは{record: [...], metadata: {...}}の形で返ってくる
+            tasks = data.record || [];
+            render();
+        } catch(error) {
+            taskListEl.innerHTML = `<li class="empty-task">魂の器にアクセスできなかった…キーやID、ネットワークを確認してくれ。</li>`;
+        }
+    };
+
+    // イベントリスナー
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const contentInput = document.getElementById('task-content');
+        const dueDateInput = document.getElementById('task-due-date');
+        if (!contentInput.value.trim()) return;
+
+        tasks.push({
+            id: Date.now().toString(),
+            content: contentInput.value,
+            dueDate: dueDateInput.value || null,
+            completed: false
+        });
+        
+        try {
+            await apiCall('PUT', tasks);
+            contentInput.value = '';
+            dueDateInput.value = '';
+            render();
+        } catch (error) {
+            // エラーが出たら、追加したタスクを元に戻す
+            tasks.pop(); 
+        }
+    });
+    
+    taskListEl.addEventListener('click', async (e) => {
+        const li = e.target.closest('.task-item');
+        if (!li) return;
+        const id = li.dataset.id;
+        const taskIndex = tasks.findIndex(t => t.id === id);
+        if (taskIndex === -1) return;
+
+        let changed = false;
+        let originalTaskState = {...tasks[taskIndex]}; // 失敗した時用に元の状態を保存
+
+        if (e.target.type === 'checkbox') {
+            tasks[taskIndex].completed = e.target.checked;
+            changed = true;
+        } else if (e.target.matches('.delete-btn')) {
+            if (!confirm('このタスクを完全に消去する。後悔はないな？')) return;
+            tasks.splice(taskIndex, 1);
+            changed = true;
+        }
+
+        if (changed) {
+            try {
+                await apiCall('PUT', tasks);
+                render();
+            } catch (error) {
+                // エラーが出たら、ローカルのタスクリストを元の状態に戻す
+                tasks.splice(taskIndex, 0, originalTaskState);
+            }
+        }
+    });
+
+    function escapeHTML(str) { return str.replace(/[&<>"']/g, m=>({'&':'&','<':'<','>':'>','"':'"',"'":'''}[m]));}
+    
+    initializeApp();
+});
+</script>
+</body>
+</html>
