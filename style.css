@@ -91,6 +91,7 @@ header h1 sub {
 #ai-generator textarea {
     background-color: var(--input-bg);
     color: var(--text-color-primary);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 #task-form input::placeholder,
 #ai-generator textarea::placeholder {
@@ -110,6 +111,7 @@ header h1 sub {
     font-weight: 600;
     cursor: pointer;
     border: none; /* Remove border for primary buttons */
+    transition: opacity 0.2s ease, transform 0.2s ease;
 }
 #task-form button:hover,
 #gemini-trigger-btn:hover {
@@ -124,6 +126,7 @@ header h1 sub {
     cursor: pointer;
     border: none; /* Remove border */
     padding: 10px; /* Add padding */
+    transition: background-color 0.2s ease, border-radius 0.2s ease;
 }
 #ai-toggle-btn:hover {
     background-color: var(--input-bg);
@@ -210,7 +213,7 @@ header h1 sub {
 #calendar-view {
     background-color: var(--pane-bg);
     border-radius: var(--border-radius-large); /* Larger border-radius */
-    padding: 25px; /* Adjusted padding */
+    padding: 35px; /* Adjusted padding */
     border: 1px solid var(--border-color);
     flex-grow: 1;
     display: flex;
@@ -428,6 +431,7 @@ header h1 sub {
     cursor: pointer;
     font-size: 0.95em; /* Slightly larger font */
     font-weight: 600;
+    transition: opacity 0.2s ease;
 }
 #new-label-creator button:hover {
     opacity: 0.9;
@@ -446,6 +450,7 @@ header h1 sub {
     color: #fff;
     font-weight: 500;
     box-shadow: 0 1px 3px var(--shadow-color); /* Subtle shadow */
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 /* --- ラベル編集モーダル --- */
@@ -461,6 +466,7 @@ header h1 sub {
     align-items: center;
     z-index: 1000;
     backdrop-filter: blur(5px); /* Frosted glass effect */
+    transition: background-color 0.3s ease, backdrop-filter 0.3s ease;
 }
 
 .modal-content {
@@ -541,8 +547,8 @@ header h1 sub {
 
 /* Toolbar */
 #calendar-container .fc-header-toolbar {
-    margin-bottom: 1.8em !important; /* More space */
-    padding-bottom: 15px;
+    margin-bottom: 2.5em !important; /* More space */
+    padding-bottom: 20px;
     border-bottom: 1px solid var(--border-color);
 }
 
@@ -581,7 +587,15 @@ header h1 sub {
     font-weight: 600;
 }
 
-/* View Cells */
+#calendar-container .fc-button-group .fc-button {
+    margin-right: 5px; /* Add margin between buttons */
+}
+
+#calendar-container .fc-button-group .fc-button:last-child {
+    margin-right: 0; /* Remove margin from the last button */
+}
+
+
 #calendar-container .fc-daygrid-day-frame {
     border-radius: var(--border-radius-small);
     transition: background-color 0.2s ease;
