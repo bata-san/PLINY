@@ -14,7 +14,7 @@ const API_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 let taskForm, taskInput, taskDueDateInput, taskListContainer, calendarContainer;
 let showListBtn, showCalendarBtn, listView, calendarView;
 let geminiPrompt, geminiTriggerBtn, aiToggleBtn, aiContent;
-let labelCheckboxesContainer, newLabelNameInput, newLabelColorInput, addNewLabelBtn, editLabelsToggleBtn;
+let labelCheckboxesContainer, newLabelNameInput, newLabelColorInput, addNewLabelBtn;
 let labelEditorModal, modalTaskText, modalLabelsContainer, modalSaveBtn, modalCloseBtn;
 
 // ===============================================
@@ -32,7 +32,7 @@ let labels = {
 };
 let calendar;
 let currentlyEditingTaskId = null;
-let isDeleteModeActive = false; // 削除モードの状態を管理
+
 
 // ===============================================
 // 初期化処理
@@ -57,7 +57,6 @@ document.addEventListener('DOMContentLoaded', () => {
     newLabelNameInput = document.getElementById('new-label-name');
     newLabelColorInput = document.getElementById('new-label-color');
     addNewLabelBtn = document.getElementById('add-new-label-btn');
-    editLabelsToggleBtn = document.getElementById('edit-labels-toggle-btn'); // 新しいボタン
     labelEditorModal = document.getElementById('label-editor-modal');
     modalTaskText = document.getElementById('modal-task-text');
     modalLabelsContainer = document.getElementById('modal-labels-container');
@@ -72,7 +71,6 @@ document.addEventListener('DOMContentLoaded', () => {
     taskForm.addEventListener('submit', handleTaskFormSubmit);
     taskListContainer.addEventListener('click', handleTaskListClick);
     addNewLabelBtn.addEventListener('click', handleAddNewLabel);
-    editLabelsToggleBtn.addEventListener('click', toggleDeleteMode); // 新しいボタンのイベントリスナー
     showListBtn.addEventListener('click', () => switchView('list'));
     showCalendarBtn.addEventListener('click', () => switchView('calendar'));
     aiToggleBtn.addEventListener('click', () => {
@@ -169,18 +167,14 @@ const saveData = () => {
 // ===============================================
 
 const renderAll = () => {
-    const labelManagerDiv = document.getElementById('label-manager');
-    if (labelManagerDiv) {
-        labelManagerDiv.classList.toggle('delete-mode-active', isDeleteModeActive);
-    }
     if (labelCheckboxesContainer) {
-        renderLabelCheckboxes(labelCheckboxesContainer, [], isDeleteModeActive);
+        renderLabelCheckboxes(labelCheckboxesContainer, []);
     }
     renderTaskList();
     renderCalendar();
 };
 
-const renderLabelCheckboxes = (container, selectedLabels = [], showDeleteButtons = false) => {
+const renderLabelCheckboxes = (container, selectedLabels = []) => {
     container.innerHTML = '';
     Object.keys(labels).forEach(labelName => {
         const color = labels[labelName];
@@ -192,17 +186,8 @@ const renderLabelCheckboxes = (container, selectedLabels = [], showDeleteButtons
         div.innerHTML = `
             <input type="checkbox" id="${id}" name="task-label" value="${labelName}" ${isChecked ? 'checked' : ''}>
             <label for="${id}" style="--label-color: ${color};">${labelName}</label>
-            <button type="button" class="delete-label-btn" data-label-name="${labelName}">x</button>
-        `; // Always render the button, CSS will control visibility
+        `;
         container.appendChild(div);
-    });
-
-    // 削除ボタンのイベントリスナーを設定
-    container.querySelectorAll('.delete-label-btn').forEach(button => {
-        button.removeEventListener('click', handleDeleteLabel); // 既存のリスナーを削除
-        if (showDeleteButtons) {
-            button.addEventListener('click', handleDeleteLabel);
-        }
     });
 };
 
@@ -352,7 +337,7 @@ const handleAddNewLabel = () => {
     const newColor = newLabelColorInput.value;
     if (newName && !labels[newName]) {
         labels[newName] = newColor;
-        renderLabelCheckboxes(labelCheckboxesContainer, [], isDeleteModeActive); // 削除モードの状態を渡す
+        renderLabelCheckboxes(labelCheckboxesContainer); // 削除モードの状態を渡す
         saveData();
         newLabelNameInput.value = '';
         newLabelColorInput.value = '#828282';
@@ -361,34 +346,9 @@ const handleAddNewLabel = () => {
     }
 };
 
-const handleDeleteLabel = (e) => {
-    const labelNameToDelete = e.target.dataset.labelName;
-    if (confirm(`ラベル「${labelNameToDelete}」を削除してもよろしいですか？
-このラベルが割り当てられているすべてのタスクからも削除されます。`)) {
-        delete labels[labelNameToDelete];
-        // 削除されたラベルをすべてのタスクから削除
-        tasks.forEach(task => {
-            if (task.labels) {
-                task.labels = task.labels.filter(label => label !== labelNameToDelete);
-            }
-        });
-        renderAll();
-        saveData();
-    }
-};
 
-const toggleDeleteMode = () => {
-    isDeleteModeActive = !isDeleteModeActive;
-    const labelManagerDiv = document.getElementById('label-manager');
-    if (labelManagerDiv) {
-        labelManagerDiv.classList.toggle('delete-mode-active', isDeleteModeActive);
-    }
-    if (editLabelsToggleBtn) {
-        editLabelsToggleBtn.classList.toggle('active', isDeleteModeActive);
-        editLabelsToggleBtn.textContent = isDeleteModeActive ? '完了' : '編集';
-    }
-    renderLabelCheckboxes(labelCheckboxesContainer, [], isDeleteModeActive); // 削除モードの状態を渡して再描画
-};
+
+
 
 const switchView = (view) => {
     if (!listView || !calendarView || !showListBtn || !showCalendarBtn) return; // グローバル変数を使用
@@ -409,7 +369,7 @@ const openLabelEditorModal = (task) => {
 
     currentlyEditingTaskId = task.id;
     modalTaskText.textContent = task.text;
-    renderLabelCheckboxes(modalLabelsContainer, task.labels || [], false); // モーダルでは削除ボタンを表示しない
+    renderLabelCheckboxes(modalLabelsContainer, task.labels || []);
     labelEditorModal.style.display = 'flex';
 };
 
