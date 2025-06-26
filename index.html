@@ -23,6 +23,20 @@
                 <h2>新しいタスク</h2>
                 <input type="text" id="task-input" placeholder="タスクの内容を入力..." required>
                 <input type="text" id="task-due-date" placeholder="期間を選択 (開始日〜終了日)" required>
+                <div id="label-manager">
+                        <div class="label-manager-header">
+                            <p>ラベルを選択 (複数可)</p>
+                            <button type="button" id="edit-labels-toggle-btn">編集</button>
+                        </div>
+                        <div id="label-checkboxes-container">
+                            <!-- ラベルのチェックボックスがここに挿入される -->
+                        </div>
+                        <div id="new-label-creator">
+                            <input type="text" id="new-label-name" placeholder="新しいラベル名">
+                            <input type="color" id="new-label-color" value="#828282">
+                            <button type="button" id="add-new-label-btn">追加</button>
+                        </div>
+                    </div>
                 <button type="submit">登録する</button>
             </form>
 
@@ -55,6 +69,25 @@
             <main id="calendar-view" style="display: none;">
                 <div id="calendar-container"></div>
             </main>
+        </div>
+    </div>
+
+    <!-- ラベル編集モーダル -->
+    <div id="label-editor-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>ラベルを編集</h3>
+            </div>
+            <div class="modal-body">
+                <p id="modal-task-text" style="font-weight: bold; margin-bottom: 15px;"></p>
+                <div id="modal-labels-container">
+                    <!-- ラベル選択チェックボックスがここに挿入される -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="modal-close-btn">キャンセル</button>
+                <button id="modal-save-btn">保存する</button>
+            </div>
         </div>
     </div>
 

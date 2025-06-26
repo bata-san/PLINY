@@ -1,149 +1,571 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
-    --bg-color: #f7f8fc;
-    --pane-bg: #ffffff;
-    --text-color-primary: #1d1d1f;
-    --text-color-secondary: #6e6e73;
-    --accent-color-blue: #007aff;
-    --accent-color-red: #ff3b30;
-    --border-color: #e5e5ea;
-    --input-bg: #f0f0f5;
+    --bg-color: #f2f2f7; /* iOS background */
+    --pane-bg: #ffffff; /* White for cards and panes */
+    --text-color-primary: #1c1c1e; /* Dark text */
+    --text-color-secondary: #8e8e93; /* Gray text */
+    --accent-color-blue: #007aff; /* iOS blue */
+    --accent-color-red: #ff3b30; /* iOS red */
+    --border-color: #e5e5ea; /* Light border */
+    --input-bg: #e9e9eb; /* Light input background */
+    --shadow-color: rgba(0, 0, 0, 0.08); /* Subtle shadow */
+    --border-radius-small: 8px;
+    --border-radius-medium: 12px;
+    --border-radius-large: 16px;
 }
 
 body {
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
     background-color: var(--bg-color);
     color: var(--text-color-primary);
     margin: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
 #app-container {
     display: flex;
     height: 100vh;
+    background-color: var(--bg-color);
 }
 
 /* Left Pane */
 #left-pane {
-    width: 380px;
-    flex-shrink: 0; /* サイドバーの幅を固定 */
+    width: 400px; /* Slightly wider for more content */
+    flex-shrink: 0;
     background-color: var(--pane-bg);
     border-right: 1px solid var(--border-color);
-    padding: 40px;
+    padding: 30px; /* Adjusted padding */
     display: flex;
     flex-direction: column;
-    gap: 40px;
+    gap: 30px; /* Adjusted gap */
+    box-shadow: 0 0 10px var(--shadow-color); /* Subtle shadow */
+    z-index: 1; /* Ensure shadow is visible */
 }
 
-header h1 { font-size: 1.8em; font-weight: 700; }
-header h1 sub { font-size: 0.6em; color: var(--text-color-secondary); }
+header {
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+header h1 {
+    font-size: 2em; /* Larger title */
+    font-weight: 700;
+    color: var(--text-color-primary);
+    margin: 0;
+}
+header h1 sub {
+    font-size: 0.5em;
+    color: var(--text-color-secondary);
+    vertical-align: super;
+    margin-left: 5px;
+}
 
-#task-form, #ai-generator { display: flex; flex-direction: column; gap: 15px; }
-#task-form h2 { font-size: 1.2em; margin: 0 0 5px 0; }
+#task-form, #ai-generator {
+    display: flex;
+    flex-direction: column;
+    gap: 18px; /* Adjusted gap */
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+#task-form h2 {
+    font-size: 1.3em; /* Slightly larger heading */
+    margin: 0 0 10px 0;
+    color: var(--text-color-primary);
+}
 
-#task-form input, #task-form button, #ai-generator textarea, #ai-generator button {
+#task-form input,
+#task-form button,
+#ai-generator textarea,
+#ai-generator button {
     width: 100%;
-    padding: 14px;
-    border-radius: 8px;
+    padding: 12px 15px; /* Adjusted padding */
+    border-radius: var(--border-radius-small); /* Consistent border-radius */
     border: 1px solid var(--border-color);
     font-size: 1em;
     box-sizing: border-box;
+    transition: all 0.2s ease;
 }
 
-#task-form input, #ai-generator textarea { background-color: var(--input-bg); }
-#task-form button, #gemini-trigger-btn { background-color: var(--accent-color-blue); color: #fff; font-weight: 600; cursor: pointer; }
-#ai-toggle-btn { background-color: transparent; color: var(--accent-color-blue); font-weight: 600; text-align: center; cursor: pointer; }
+#task-form input,
+#ai-generator textarea {
+    background-color: var(--input-bg);
+    color: var(--text-color-primary);
+}
+#task-form input::placeholder,
+#ai-generator textarea::placeholder {
+    color: var(--text-color-secondary);
+}
+#task-form input:focus,
+#ai-generator textarea:focus {
+    border-color: var(--accent-color-blue);
+    box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.2);
+    outline: none;
+}
+
+#task-form button,
+#gemini-trigger-btn {
+    background-color: var(--accent-color-blue);
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+    border: none; /* Remove border for primary buttons */
+}
+#task-form button:hover,
+#gemini-trigger-btn:hover {
+    opacity: 0.9;
+}
+
+#ai-toggle-btn {
+    background-color: transparent;
+    color: var(--accent-color-blue);
+    font-weight: 600;
+    text-align: center;
+    cursor: pointer;
+    border: none; /* Remove border */
+    padding: 10px; /* Add padding */
+}
+#ai-toggle-btn:hover {
+    background-color: var(--input-bg);
+    border-radius: var(--border-radius-small);
+}
 
 /* Right Pane */
 #right-pane {
     flex-grow: 1;
-    padding: 40px;
+    padding: 30px; /* Adjusted padding */
     overflow-y: auto;
-    display: flex; /* 追加 */
-    flex-direction: column; /* 追加 */
+    display: flex;
+    flex-direction: column;
+    background-color: var(--bg-color); /* Match body background */
 }
 
-#view-switcher { display: flex; justify-content: flex-end; margin-bottom: 20px; }
-#view-switcher button { padding: 8px 20px; border: 1px solid var(--border-color); background: transparent; color: var(--text-color-secondary); cursor: pointer; }
-#view-switcher button:first-child { border-radius: 8px 0 0 8px; }
-#view-switcher button:last-child { border-radius: 0 8px 8px 0; border-left: none; }
-#view-switcher button.active { background: var(--accent-color-blue); color: #fff; border-color: var(--accent-color-blue); }
+#view-switcher {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 25px; /* Adjusted margin */
+    background-color: var(--input-bg); /* Segmented control background */
+    border-radius: var(--border-radius-small);
+    padding: 4px;
+    width: fit-content; /* Fit content width */
+    align-self: flex-end; /* Align to right */
+}
+#view-switcher button {
+    padding: 8px 18px; /* Adjusted padding */
+    border: none; /* Remove individual button borders */
+    background: transparent;
+    color: var(--text-color-secondary);
+    cursor: pointer;
+    font-weight: 500;
+    border-radius: var(--border-radius-small); /* Apply border-radius to buttons */
+    transition: all 0.2s ease;
+}
+#view-switcher button.active {
+    background: var(--pane-bg); /* White background for active */
+    color: var(--text-color-primary);
+    box-shadow: 0 1px 3px var(--shadow-color); /* Subtle shadow for active */
+}
 
-#list-view { /* 追加 */
+#list-view {
     flex-grow: 1;
     overflow-y: auto;
+    padding-right: 10px; /* For scrollbar */
 }
 
-#task-list-container { display: grid; grid-template-columns: 1fr; gap: 15px; }
+#task-list-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); /* Responsive grid */
+    gap: 20px; /* Adjusted gap */
+}
 .task-card {
     background: var(--pane-bg);
     border: 1px solid var(--border-color);
-    border-left: 4px solid var(--accent-color-blue);
-    border-radius: 8px;
-    padding: 20px;
+    border-left: 5px solid var(--accent-color-blue); /* Thicker accent border */
+    border-radius: var(--border-radius-medium); /* More rounded corners */
+    padding: 15px 20px; /* Increased padding */
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 10px; /* Adjusted gap */
+    box-shadow: 0 2px 8px var(--shadow-color); /* More prominent shadow */
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
-.task-card.completed { border-left-color: #a0a0a0; }
-.task-card.completed .task-text { text-decoration: line-through; color: var(--text-color-secondary); }
-
-#calendar-view { 
-    background-color: var(--pane-bg); 
-    border-radius: 12px; 
-    padding: 20px; 
-    border: 1px solid var(--border-color); 
-    flex-grow: 1; /* 追加 */
-    display: flex; /* 追加 */
-    flex-direction: column; /* 追加 */
+.task-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+.task-card.completed {
+    border-left-color: var(--text-color-secondary); /* Gray for completed */
+    opacity: 0.7;
+}
+.task-card.completed .task-text {
+    text-decoration: line-through;
+    color: var(--text-color-secondary);
+}
+.task-text {
+    font-size: 1.1em;
+    font-weight: 500;
+    color: var(--text-color-primary);
 }
 
-#calendar-container { /* 追加 */
+#calendar-view {
+    background-color: var(--pane-bg);
+    border-radius: var(--border-radius-large); /* Larger border-radius */
+    padding: 25px; /* Adjusted padding */
+    border: 1px solid var(--border-color);
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 2px 8px var(--shadow-color); /* Consistent shadow */
+}
+
+#calendar-container {
     flex-grow: 1;
 }
 
 /* Spinner */
-.loading-indicator { display: flex; align-items: center; justify-content: center; gap: 10px; }
-.spinner { width: 18px; height: 18px; border: 2px solid rgba(255, 255, 255, 0.3); border-top-color: #fff; border-radius: 50%; animation: spin 1s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
+.loading-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px; /* Adjusted gap */
+}
+.spinner {
+    width: 20px; /* Slightly larger spinner */
+    height: 20px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
 
 /* Task Card Footer */
-.task-footer { display: flex; justify-content: space-between; align-items: center; }
-.task-due-date { font-size: 0.9em; color: var(--text-color-secondary); }
-.task-actions button { font-size: 0.8em; padding: 5px 10px; border-radius: 5px; cursor: pointer; }
-.complete-btn { background-color: #e0e0e0; border: 1px solid #ccc; }
-.delete-btn { background-color: var(--accent-color-red); color: #fff; border: 1px solid var(--accent-color-red); }
-.task-card.completed .complete-btn { background-color: #d0f0c0; }
+.task-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px; /* Adjusted gap */
+    margin-top: 10px; /* Adjusted margin */
+    padding-top: 10px;
+    border-top: 1px solid var(--border-color); /* Separator line */
+}
+.task-due-date {
+    font-size: 0.9em; /* Slightly larger font */
+    color: var(--text-color-secondary);
+    font-weight: 500;
+}
+.task-actions button {
+    font-size: 0.85em; /* Slightly larger font */
+    padding: 6px 12px; /* Adjusted padding */
+    border-radius: var(--border-radius-small);
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+.complete-btn {
+    background-color: var(--input-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-color-primary);
+}
+.complete-btn:hover {
+    background-color: #dcdce0;
+}
+.delete-btn {
+    background-color: var(--accent-color-red);
+    color: #fff;
+    border: none; /* No border for delete */
+}
+.delete-btn:hover {
+    opacity: 0.9;
+}
+.task-card.completed .complete-btn {
+    background-color: #e6ffe6; /* Light green for completed */
+    color: #28a745; /* Green text */
+    border-color: #28a745;
+}
+.edit-labels-btn {
+    background-color: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-color-secondary);
+}
+.edit-labels-btn:hover {
+    background-color: var(--input-bg);
+}
+
+#label-manager {
+    display: flex;
+    flex-direction: column;
+    gap: 10px; /* Adjusted gap */
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+.label-manager-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+}
+.label-manager-header p {
+    margin: 0;
+    font-weight: 500;
+    font-size: 0.9em; /* Slightly larger font */
+    color: var(--text-color-secondary);
+}
+#edit-labels-toggle-btn {
+    background-color: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-color-secondary);
+    padding: 5px 10px;
+    border-radius: var(--border-radius-small);
+    font-size: 0.8em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+#edit-labels-toggle-btn:hover {
+    background-color: var(--input-bg);
+}
+#edit-labels-toggle-btn.active {
+    background-color: var(--accent-color-blue);
+    color: #fff;
+    border-color: var(--accent-color-blue);
+}
+#label-checkboxes-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px; /* Adjusted gap */
+}
+
+/* ラベル選択のデザイン */
+/* ラベル選択のデザイン */
+.label-checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 6px; /* Adjusted gap */
+}
+.label-checkbox-item input[type="checkbox"] {
+    display: none;
+}
+.label-checkbox-item label {
+    display: inline-block;
+    padding: 7px 14px; /* More generous padding */
+    border-radius: 22px; /* More rounded, pill-like */
+    font-size: 0.9em; /* Slightly larger font */
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1px solid var(--label-color, var(--border-color)); /* Border for unselected */
+    background-color: var(--pane-bg); /* White background */
+    color: var(--label-color, var(--text-color-secondary));
+    box-shadow: 0 1px 3px var(--shadow-color); /* Subtle shadow */
+}
+.label-checkbox-item label:hover {
+    background-color: var(--input-bg); /* Lighter background on hover */
+}
+.label-checkbox-item input[type="checkbox"]:checked + label {
+    background-color: var(--label-color, var(--accent-color-blue));
+    color: #fff;
+    border-color: var(--label-color, var(--accent-color-blue));
+    box-shadow: 0 2px 5px rgba(0, 122, 255, 0.2); /* Stronger shadow when checked */
+}
+
+.delete-label-btn {
+    background-color: transparent; /* Transparent background */
+    border: none; /* No border */
+    color: var(--text-color-secondary); /* Subtle color */
+    font-size: 0.9em; /* Smaller icon */
+    cursor: pointer;
+    padding: 0;
+    width: 20px; /* Smaller size */
+    height: 20px;
+    display: none; /* Hidden by default */
+    justify-content: center;
+    align-items: center;
+    transition: all 0.2s ease;
+    border-radius: 50%; /* Circular */
+}
+
+.label-manager.delete-mode-active .delete-label-btn {
+    display: flex; /* Show when delete mode is active */
+}
+
+.delete-label-btn:hover {
+    background-color: var(--input-bg); /* Light background on hover */
+    color: var(--accent-color-red); /* Red on hover */
+}
+
+#new-label-creator {
+    display: flex;
+    gap: 8px; /* Adjusted gap */
+    align-items: center;
+    margin-top: 10px;
+}
+#new-label-creator input[type="text"] {
+    flex-grow: 1;
+    padding: 10px 12px; /* Adjusted padding */
+    border-radius: var(--border-radius-small);
+    border: 1px solid var(--border-color);
+    background-color: var(--input-bg);
+}
+#new-label-creator input[type="color"] {
+    padding: 0;
+    border: none;
+    width: 36px; /* Larger color picker */
+    height: 36px;
+    background: none;
+    cursor: pointer;
+    border-radius: var(--border-radius-small);
+    overflow: hidden; /* Hide default color picker border */
+}
+#new-label-creator button {
+    padding: 10px 18px; /* Adjusted padding */
+    border-radius: var(--border-radius-small);
+    background-color: var(--accent-color-blue);
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    font-size: 0.95em; /* Slightly larger font */
+    font-weight: 600;
+}
+#new-label-creator button:hover {
+    opacity: 0.9;
+}
+
+.task-labels-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px; /* Adjusted gap */
+    margin-top: 8px;
+}
+.task-label {
+    padding: 5px 10px; /* Adjusted padding */
+    border-radius: 15px; /* More rounded */
+    font-size: 0.8em;
+    color: #fff;
+    font-weight: 500;
+    box-shadow: 0 1px 3px var(--shadow-color); /* Subtle shadow */
+}
+
+/* --- ラベル編集モーダル --- */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.4); /* Lighter overlay */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    backdrop-filter: blur(5px); /* Frosted glass effect */
+}
+
+.modal-content {
+    background: var(--pane-bg);
+    padding: 30px;
+    border-radius: var(--border-radius-large); /* Larger border-radius */
+    width: 90%;
+    max-width: 550px; /* Slightly wider modal */
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); /* Stronger shadow */
+    transform: scale(0.95);
+    opacity: 0;
+    animation: modal-appear 0.3s forwards cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes modal-appear {
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.modal-header {
+    margin-bottom: 20px;
+    text-align: center; /* Center header */
+}
+.modal-header h3 {
+    margin: 0;
+    font-size: 1.6em; /* Larger heading */
+    color: var(--text-color-primary);
+}
+
+.modal-body #modal-labels-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px; /* Adjusted gap */
+    justify-content: center; /* Center labels */
+}
+
+.modal-footer {
+    margin-top: 30px; /* Adjusted margin */
+    display: flex;
+    justify-content: center; /* Center buttons */
+    gap: 15px; /* Adjusted gap */
+}
+
+.modal-footer button {
+    padding: 12px 25px; /* Adjusted padding */
+    border-radius: var(--border-radius-small);
+    border: none;
+    font-size: 1em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+#modal-save-btn {
+    background-color: var(--accent-color-blue);
+    color: #fff;
+}
+#modal-save-btn:hover {
+    opacity: 0.9;
+}
+#modal-close-btn {
+    background-color: var(--input-bg);
+    color: var(--text-color-primary);
+}
+#modal-close-btn:hover {
+    background-color: #dcdce0;
+}
+
 
 /* --- FullCalendar Customization --- */
 
 #calendar-container .fc {
-    border: none; /* Remove default border */
+    border: none;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
 }
 
 /* Toolbar */
 #calendar-container .fc-header-toolbar {
-    margin-bottom: 1.5em !important; /* Add !important to ensure override */
+    margin-bottom: 1.8em !important; /* More space */
+    padding-bottom: 15px;
+    border-bottom: 1px solid var(--border-color);
 }
 
 #calendar-container .fc-toolbar-title {
-    font-size: 1.7em;
-    font-weight: 600;
+    font-size: 1.8em; /* Larger title */
+    font-weight: 700;
     color: var(--text-color-primary);
 }
 
 #calendar-container .fc-button,
 #calendar-container .fc-button-primary {
-    background-color: var(--pane-bg) !important;
+    background-color: var(--input-bg) !important; /* Match input background */
     border: 1px solid var(--border-color) !important;
-    color: var(--text-color-secondary) !important;
+    color: var(--text-color-primary) !important; /* Darker text */
     box-shadow: none !important;
     transition: all 0.2s ease;
+    border-radius: var(--border-radius-small) !important; /* Rounded buttons */
+    font-weight: 500;
 }
 
 #calendar-container .fc-button:hover,
 #calendar-container .fc-button-primary:hover {
-    background-color: var(--input-bg) !important;
+    background-color: #dcdce0 !important; /* Slightly darker on hover */
     border-color: #c8c8c8 !important;
 }
 
@@ -161,43 +583,45 @@ header h1 sub { font-size: 0.6em; color: var(--text-color-secondary); }
 
 /* View Cells */
 #calendar-container .fc-daygrid-day-frame {
-    border-radius: 8px;
+    border-radius: var(--border-radius-small);
     transition: background-color 0.2s ease;
 }
 
 #calendar-container .fc-daygrid-day:hover .fc-daygrid-day-frame {
-    background-color: rgba(0, 123, 255, 0.05);
+    background-color: rgba(0, 122, 255, 0.08); /* Lighter hover effect */
 }
 
 #calendar-container .fc-day-today .fc-daygrid-day-frame {
-    background-color: rgba(0, 123, 255, 0.1);
+    background-color: rgba(0, 122, 255, 0.15); /* Slightly darker today */
 }
 
 #calendar-container .fc-daygrid-day-number {
-    padding: 8px;
+    padding: 10px; /* More padding */
     font-weight: 500;
+    color: var(--text-color-primary);
 }
 
 /* Events */
 #calendar-container .fc-daygrid-event {
-    border-radius: 5px;
-    padding: 4px 8px;
-    font-size: 0.9em;
+    border-radius: var(--border-radius-small);
+    padding: 5px 10px; /* Adjusted padding */
+    font-size: 0.85em; /* Slightly smaller font */
     font-weight: 500;
     border: none;
     cursor: pointer;
     transition: all 0.2s ease;
+    box-shadow: 0 1px 3px var(--shadow-color); /* Subtle shadow */
 }
 
 #calendar-container .fc-daygrid-event:hover {
     transform: translateY(-2px);
-    box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15); /* More prominent shadow on hover */
 }
 
 /* Completed Event Style */
 #calendar-container .completed-event {
-    background-color: #e9ecef !important;
-    border-color: #e9ecef !important;
+    background-color: var(--input-bg) !important; /* Match input background */
+    border-color: var(--border-color) !important;
 }
 
 #calendar-container .completed-event .fc-event-title {
@@ -216,18 +640,24 @@ header h1 sub { font-size: 0.6em; color: var(--text-color-secondary); }
         width: 100%;
         border-right: none;
         border-bottom: 1px solid var(--border-color);
-        padding: 20px;
-        gap: 25px;
+        padding: 25px; /* Adjusted padding */
+        gap: 20px; /* Adjusted gap */
         box-sizing: border-box;
+        box-shadow: none; /* Remove shadow on small screens */
     }
 
     #right-pane {
-        padding: 20px;
+        padding: 25px; /* Adjusted padding */
         overflow-y: initial;
     }
 
     header h1 {
-        font-size: 1.6em;
+        font-size: 1.8em;
+    }
+
+    #view-switcher {
+        align-self: stretch; /* Full width */
+        width: 100%;
     }
 }
 
@@ -236,19 +666,32 @@ header h1 sub { font-size: 0.6em; color: var(--text-color-secondary); }
         display: none;
     }
     #show-list-btn {
-        border-radius: 8px;
+        border-radius: var(--border-radius-small);
+    }
+    #task-list-container {
+        grid-template-columns: 1fr; /* Single column on small screens */
     }
 }
 
 @media (max-width: 480px) {
     #task-form {
         flex-direction: column;
-        gap: 10px;
+        gap: 15px; /* Adjusted gap */
     }
 
     .task-footer {
         flex-direction: column;
         align-items: flex-start;
-        gap: 10px;
+        gap: 8px; /* Adjusted gap */
+    }
+
+    .modal-content {
+        padding: 20px;
+    }
+    .modal-header h3 {
+        font-size: 1.4em;
+    }
+    .modal-footer button {
+        padding: 10px 20px;
     }
 }

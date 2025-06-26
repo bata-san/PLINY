@@ -1,79 +1,145 @@
 // ===============================================
-// 相棒、この３つを書き換えてくれ！
-// ルートBでいくなら、3つ全部必要だ！
+// 定数
 // ===============================================
-const MASTER_KEY = '$2a$10$l.shMPQkZut9GF8QmO5kjuUe5EuHpRA4sATqrlfXG.lNjF1n0clg.'; 
+const MASTER_KEY = '$2a$10$l.shMPQkZut9GF8QmO5kjuUe5EuHpRA4sATqrlfXG.lNjF1n0clg.';
 const ACCESS_KEY = '$2a$10$h10RX1N2om3YrLjEs313gOKLSH5XN2ov/qECHWf/qoh5ex4Sz3JpG';
 const BIN_ID = '685bfb988561e97a502b9056';
 const GEMINI_API_KEY = 'AIzaSyD4GPZ85iVlKjbmd-j3DKfbPooGpqlaZtM';
-// ===============================================
 
 const API_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
-// --- DOM要素の取得 ---
-const taskForm = document.getElementById('task-form');
-const taskInput = document.getElementById('task-input');
-const taskDueDateInput = document.getElementById('task-due-date');
-const taskListContainer = document.getElementById('task-list-container');
-const calendarContainer = document.getElementById('calendar-container');
-const showListBtn = document.getElementById('show-list-btn');
-const showCalendarBtn = document.getElementById('show-calendar-btn');
-const listView = document.getElementById('list-view');
-const calendarView = document.getElementById('calendar-view');
-const geminiPrompt = document.getElementById('gemini-prompt');
-const geminiTriggerBtn = document.getElementById('gemini-trigger-btn');
-const aiToggleBtn = document.getElementById('ai-toggle-btn');
-const aiContent = document.getElementById('ai-content');
+// ===============================================
+// DOM要素の宣言 (DOMContentLoadedで初期化)
+// ===============================================
+let taskForm, taskInput, taskDueDateInput, taskListContainer, calendarContainer;
+let showListBtn, showCalendarBtn, listView, calendarView;
+let geminiPrompt, geminiTriggerBtn, aiToggleBtn, aiContent;
+let labelCheckboxesContainer, newLabelNameInput, newLabelColorInput, addNewLabelBtn, editLabelsToggleBtn;
+let labelEditorModal, modalTaskText, modalLabelsContainer, modalSaveBtn, modalCloseBtn;
 
+// ===============================================
+// グローバル変数
+// ===============================================
 let tasks = [];
+let labels = {
+    "仕事": "#5B92E5",
+    "プライベート": "#63B7AF",
+    "健康": "#6FCF97",
+    "学習": "#F2C94C",
+    "アイデア": "#BB6BD9",
+    "緊急": "#F76D6D",
+    "その他": "#BDBDBD"
+};
 let calendar;
+let currentlyEditingTaskId = null;
+let isDeleteModeActive = false; // 削除モードの状態を管理
 
-// --- 初期化処理 ---
+// ===============================================
+// 初期化処理
+// ===============================================
 
-// flatpickrを期間選択モードに！
-flatpickr(taskDueDateInput, {
-    mode: "range", // これで期間選択が可能になる！
-    dateFormat: "Y-m-d",
-    altInput: true,
-    altFormat: "Y年m月d日",
-    locale: "ja"
+document.addEventListener('DOMContentLoaded', () => {
+    // DOM要素の取得と割り当て
+    taskForm = document.getElementById('task-form');
+    taskInput = document.getElementById('task-input');
+    taskDueDateInput = document.getElementById('task-due-date');
+    taskListContainer = document.getElementById('task-list-container');
+    calendarContainer = document.getElementById('calendar-container');
+    showListBtn = document.getElementById('show-list-btn');
+    showCalendarBtn = document.getElementById('show-calendar-btn');
+    listView = document.getElementById('list-view');
+    calendarView = document.getElementById('calendar-view');
+    geminiPrompt = document.getElementById('gemini-prompt');
+    geminiTriggerBtn = document.getElementById('gemini-trigger-btn');
+    aiToggleBtn = document.getElementById('ai-toggle-btn');
+    aiContent = document.getElementById('ai-content');
+    labelCheckboxesContainer = document.getElementById('label-checkboxes-container');
+    newLabelNameInput = document.getElementById('new-label-name');
+    newLabelColorInput = document.getElementById('new-label-color');
+    addNewLabelBtn = document.getElementById('add-new-label-btn');
+    editLabelsToggleBtn = document.getElementById('edit-labels-toggle-btn'); // 新しいボタン
+    labelEditorModal = document.getElementById('label-editor-modal');
+    modalTaskText = document.getElementById('modal-task-text');
+    modalLabelsContainer = document.getElementById('modal-labels-container');
+    modalSaveBtn = document.getElementById('modal-save-btn');
+    modalCloseBtn = document.getElementById('modal-close-btn');
+
+    initializeCalendar();
+    loadData();
+    initializeFlatpickr();
+    
+    // イベントリスナーの設定
+    taskForm.addEventListener('submit', handleTaskFormSubmit);
+    taskListContainer.addEventListener('click', handleTaskListClick);
+    addNewLabelBtn.addEventListener('click', handleAddNewLabel);
+    editLabelsToggleBtn.addEventListener('click', toggleDeleteMode); // 新しいボタンのイベントリスナー
+    showListBtn.addEventListener('click', () => switchView('list'));
+    showCalendarBtn.addEventListener('click', () => switchView('calendar'));
+    aiToggleBtn.addEventListener('click', () => {
+        if (aiContent) aiContent.style.display = aiContent.style.display === 'none' ? 'block' : 'none';
+    });
+    geminiTriggerBtn.addEventListener('click', handleGeminiTrigger);
+    modalCloseBtn.addEventListener('click', closeLabelEditorModal);
+    modalSaveBtn.addEventListener('click', handleModalSave);
+    labelEditorModal.addEventListener('click', (e) => {
+        if (e.target === labelEditorModal) closeLabelEditorModal();
+    });
 });
 
-// FullCalendarの初期化
+const initializeFlatpickr = () => {
+    if (!taskDueDateInput) return;
+
+    flatpickr(taskDueDateInput, {
+        mode: "range",
+        dateFormat: "Y-m-d",
+        altInput: true,
+        altFormat: "Y年m月d日",
+        locale: "ja"
+    });
+};
+
 const initializeCalendar = () => {
+    if (!calendarContainer) return;
+
     calendar = new FullCalendar.Calendar(calendarContainer, {
         initialView: window.innerWidth < 768 ? 'listWeek' : 'dayGridMonth',
         locale: 'ja',
+        timeZone: 'UTC',
         headerToolbar: {
             left: 'prev,next today',
             center: 'title',
             right: 'dayGridMonth,timeGridWeek,listWeek'
         },
-        height: '100%', // コンテナの高さに合わせる
+        height: '100%',
         events: [],
-        windowResize: function(arg) {
-            if (window.innerWidth < 768) {
-                // If calendar is visible, switch to list view
-                if (calendarView.style.display !== 'none') {
-                    showListBtn.click();
-                }
-            } 
+        editable: true,
+        eventDrop: handleEventDrop,
+        eventClick: handleEventClick,
+        windowResize: () => {
+            if (window.innerWidth < 768 && calendarView && calendarView.style.display !== 'none') {
+                showListBtn && showListBtn.click();
+            }
         }
     });
     calendar.render();
 };
 
-// --- データ連携 (JSONBIN) ---
+// ===============================================
+// データ管理 (JSONBIN)
+// ===============================================
 
-const loadTasks = async () => {
+const loadData = async () => {
     try {
         const response = await fetch(`${API_URL}/latest`, { headers: { 'X-Access-Key': ACCESS_KEY } });
-        if (!response.ok) {
-            if (response.status === 404) { await saveTasks([]); return; }
-            throw new Error(`サーバーエラー: ${response.status}`);
+        if (response.status === 404) {
+            saveData();
+            return;
         }
+        if (!response.ok) throw new Error(`サーバーエラー: ${response.status}`);
+        
         const data = await response.json();
         tasks = data.record.tasks || [];
+        labels = data.record.labels || labels;
         renderAll();
     } catch (error) {
         console.error("読み込み失敗:", error);
@@ -81,78 +147,113 @@ const loadTasks = async () => {
     }
 };
 
-const saveTasks = async (tasksToSave = tasks) => {
-    try {
-        const response = await fetch(API_URL, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Master-Key': MASTER_KEY,
-                'X-Bin-Versioning': 'false'
-            },
-            body: JSON.stringify({ tasks: tasksToSave })
-        });
+const saveData = () => {
+    fetch(API_URL, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Master-Key': MASTER_KEY,
+            'X-Bin-Versioning': 'false'
+        },
+        body: JSON.stringify({ tasks, labels })
+    }).then(response => {
         if (!response.ok) throw new Error(`保存失敗: ${response.status}`);
         console.log("アジトのデータを更新した！");
-    } catch (error) {
+    }).catch(error => {
         console.error("保存失敗:", error);
-        alert("データの保存に失敗しました。");
-    }
+    });
 };
 
-// --- 描画処理 ---
+// ===============================================
+// 描画処理
+// ===============================================
 
 const renderAll = () => {
+    const labelManagerDiv = document.getElementById('label-manager');
+    if (labelManagerDiv) {
+        labelManagerDiv.classList.toggle('delete-mode-active', isDeleteModeActive);
+    }
+    if (labelCheckboxesContainer) {
+        renderLabelCheckboxes(labelCheckboxesContainer, [], isDeleteModeActive);
+    }
     renderTaskList();
     renderCalendar();
 };
 
+const renderLabelCheckboxes = (container, selectedLabels = [], showDeleteButtons = false) => {
+    container.innerHTML = '';
+    Object.keys(labels).forEach(labelName => {
+        const color = labels[labelName];
+        const id = `${container.id}-${labelName.replace(/\s/g, '-')}`;
+        const isChecked = selectedLabels.includes(labelName);
+
+        const div = document.createElement('div');
+        div.className = 'label-checkbox-item';
+        div.innerHTML = `
+            <input type="checkbox" id="${id}" name="task-label" value="${labelName}" ${isChecked ? 'checked' : ''}>
+            <label for="${id}" style="--label-color: ${color};">${labelName}</label>
+            <button type="button" class="delete-label-btn" data-label-name="${labelName}">x</button>
+        `; // Always render the button, CSS will control visibility
+        container.appendChild(div);
+    });
+
+    // 削除ボタンのイベントリスナーを設定
+    container.querySelectorAll('.delete-label-btn').forEach(button => {
+        button.removeEventListener('click', handleDeleteLabel); // 既存のリスナーを削除
+        if (showDeleteButtons) {
+            button.addEventListener('click', handleDeleteLabel);
+        }
+    });
+};
+
 const renderTaskList = () => {
+    if (!taskListContainer) return;
+
     taskListContainer.innerHTML = '';
     const sortedTasks = [...tasks].sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
     sortedTasks.forEach(task => {
         const card = document.createElement('div');
         card.className = `task-card ${task.completed ? 'completed' : ''}`;
         card.dataset.id = task.id;
-        
-        const dateString = task.startDate === task.endDate 
-            ? task.startDate 
+
+        const dateString = task.startDate === task.endDate
+            ? task.startDate
             : `${task.startDate} ~ ${task.endDate}`;
 
+        const labelsHtml = (task.labels || []).map(labelName => {
+            const color = labels[labelName] || '#BDBDBD';
+            return `<span class="task-label" style="background-color: ${color};">${labelName}</span>`;
+        }).join('');
+
         card.innerHTML = `
-            <p class="task-text">${task.text.replace(/</g, "<")}</p>
+            <p class="task-text">${task.text.replace(/</g, "&lt;")}</p>
+            <div class="task-labels-container">${labelsHtml}</div>
             <div class="task-footer">
                 <span class="task-due-date">期間: ${dateString}</span>
                 <div class="task-actions">
+                    <button class="edit-labels-btn">ラベル編集</button>
                     <button class="complete-btn">${task.completed ? '未完了' : '完了'}</button>
                     <button class="delete-btn">削除</button>
                 </div>
-            </div>`;
+            </div>
+        `;
         taskListContainer.appendChild(card);
     });
 };
 
 const renderCalendar = () => {
-    if (!calendar) return;
+    if (!calendarContainer || !calendar) return;
+
     const events = tasks.map(task => {
-        // startDateが不正な場合はカレンダーに表示しない
-        if (!task.startDate || new Date(task.startDate).toString() === 'Invalid Date') {
-            return null;
-        }
+        if (!task.startDate || new Date(task.startDate).toString() === 'Invalid Date') return null;
 
-        // endDateが不正、または存在しない場合はstartDateを使用
-        let endDateValue = task.endDate;
-        if (!endDateValue || new Date(endDateValue).toString() === 'Invalid Date') {
-            endDateValue = task.startDate;
-        }
-
+        let endDateValue = task.endDate || task.startDate;
         const endDate = new Date(endDateValue);
-        endDate.setDate(endDate.getDate() + 1); // FullCalendarの仕様上、終了日を1日後に設定
+        endDate.setDate(endDate.getDate() + 1); // FullCalendarの仕様に合わせて終了日を+1日する
+        if (isNaN(endDate.getTime())) return null;
 
-        // 最終チェック
-        if (isNaN(endDate.getTime())) {
-            return null;
-        }
+        const firstLabelName = (task.labels && task.labels.length > 0) ? task.labels[0] : null;
+        const eventColor = firstLabelName ? labels[firstLabelName] : '#BDBDBD';
 
         return {
             id: task.id,
@@ -160,71 +261,186 @@ const renderCalendar = () => {
             start: task.startDate,
             end: endDate.toISOString().split('T')[0],
             allDay: true,
-            backgroundColor: task.completed ? '#6e6e73' : '#007aff',
-            borderColor: task.completed ? '#6e6e73' : '#007aff',
-            classNames: task.completed ? ['completed-event'] : []
+            backgroundColor: task.completed ? '#6e6e73' : eventColor,
+            borderColor: task.completed ? '#6e6e73' : eventColor,
+            classNames: task.completed ? ['completed-event'] : [],
         };
-    }).filter(Boolean); // nullを除外
+    }).filter(Boolean);
 
     calendar.getEventSources().forEach(source => source.remove());
     calendar.addEventSource(events);
 };
 
+// ===============================================
+// イベントハンドラ
+// ===============================================
 
-// --- イベントリスナー ---
+const handleEventDrop = (info) => {
+    const task = tasks.find(t => t.id === info.event.id);
+    if (task) {
+        const oldStartDate = new Date(task.startDate + 'T00:00:00Z');
+        const oldEndDate = new Date(task.endDate + 'T00:00:00Z');
+        const duration = oldEndDate.getTime() - oldStartDate.getTime();
 
-taskForm.addEventListener('submit', async (e) => {
+        const newStartDate = info.event.start;
+        const newEndDate = new Date(newStartDate.getTime() + duration);
+
+        task.startDate = newStartDate.toISOString().split('T')[0];
+        task.endDate = newEndDate.toISOString().split('T')[0];
+        
+        renderAll();
+        saveData();
+    }
+};
+
+const handleEventClick = (info) => {
+    const task = tasks.find(t => t.id === info.event.id);
+    if (task) openLabelEditorModal(task);
+};
+
+const handleTaskFormSubmit = (e) => {
     e.preventDefault();
+    if (!taskInput || !taskDueDateInput || !labelCheckboxesContainer) return; // グローバル変数を使用
+
     const text = taskInput.value.trim();
     const dates = taskDueDateInput._flatpickr.selectedDates;
+    const selectedLabels = Array.from(labelCheckboxesContainer.querySelectorAll('input[name="task-label"]:checked')).map(cb => cb.value);
+
     if (text && dates.length > 0) {
         const startDate = dates[0].toISOString().split('T')[0];
         const endDate = dates.length > 1 ? dates[1].toISOString().split('T')[0] : startDate;
-        tasks.push({ id: Date.now().toString(), text, startDate, endDate, completed: false });
+
+        tasks.push({
+            id: Date.now().toString(),
+            text,
+            startDate,
+            endDate,
+            completed: false,
+            labels: selectedLabels
+        });
         renderAll();
-        await saveTasks();
+        saveData();
         taskForm.reset();
         taskDueDateInput._flatpickr.clear();
     }
-});
+};
 
-taskListContainer.addEventListener('click', async (e) => {
+const handleTaskListClick = (e) => {
     const card = e.target.closest('.task-card');
     if (!card) return;
     const taskId = card.dataset.id;
-    const taskIndex = tasks.findIndex(t => t.id === taskId);
-    if (taskIndex === -1) return;
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
 
-    if (e.target.classList.contains('complete-btn')) {
-        tasks[taskIndex].completed = !tasks[taskIndex].completed;
-    } else if (e.target.classList.contains('delete-btn')) {
-        tasks.splice(taskIndex, 1);
+    if (e.target.matches('.edit-labels-btn')) {
+        openLabelEditorModal(task);
+    } else if (e.target.matches('.complete-btn')) {
+        task.completed = !task.completed;
+        renderAll();
+        saveData();
+    } else if (e.target.matches('.delete-btn')) {
+        tasks = tasks.filter(t => t.id !== taskId);
+        renderAll();
+        saveData();
     }
-    renderAll();
-    await saveTasks();
-});
+};
 
-showListBtn.addEventListener('click', () => {
-    listView.style.display = 'block';
-    calendarView.style.display = 'none';
-    showListBtn.classList.add('active');
-    showCalendarBtn.classList.remove('active');
-});
+const handleAddNewLabel = () => {
+    if (!newLabelNameInput || !newLabelColorInput || !labelCheckboxesContainer) return; // グローバル変数を使用
 
-showCalendarBtn.addEventListener('click', () => {
-    listView.style.display = 'none';
-    calendarView.style.display = 'block';
-    showListBtn.classList.remove('active');
-    showCalendarBtn.classList.add('active');
-    calendar.render();
-});
+    const newName = newLabelNameInput.value.trim();
+    const newColor = newLabelColorInput.value;
+    if (newName && !labels[newName]) {
+        labels[newName] = newColor;
+        renderLabelCheckboxes(labelCheckboxesContainer, [], isDeleteModeActive); // 削除モードの状態を渡す
+        saveData();
+        newLabelNameInput.value = '';
+        newLabelColorInput.value = '#828282';
+    } else if (labels[newName]) {
+        alert('そのラベル名は既に使用されています。');
+    }
+};
 
-aiToggleBtn.addEventListener('click', () => {
-    const isHidden = aiContent.style.display === 'none';
-    aiContent.style.display = isHidden ? 'block' : 'none';
-});
+const handleDeleteLabel = (e) => {
+    const labelNameToDelete = e.target.dataset.labelName;
+    if (confirm(`ラベル「${labelNameToDelete}」を削除してもよろしいですか？
+このラベルが割り当てられているすべてのタスクからも削除されます。`)) {
+        delete labels[labelNameToDelete];
+        // 削除されたラベルをすべてのタスクから削除
+        tasks.forEach(task => {
+            if (task.labels) {
+                task.labels = task.labels.filter(label => label !== labelNameToDelete);
+            }
+        });
+        renderAll();
+        saveData();
+    }
+};
 
-geminiTriggerBtn.addEventListener('click', async () => {
+const toggleDeleteMode = () => {
+    isDeleteModeActive = !isDeleteModeActive;
+    const labelManagerDiv = document.getElementById('label-manager');
+    if (labelManagerDiv) {
+        labelManagerDiv.classList.toggle('delete-mode-active', isDeleteModeActive);
+    }
+    if (editLabelsToggleBtn) {
+        editLabelsToggleBtn.classList.toggle('active', isDeleteModeActive);
+        editLabelsToggleBtn.textContent = isDeleteModeActive ? '完了' : '編集';
+    }
+    renderLabelCheckboxes(labelCheckboxesContainer, [], isDeleteModeActive); // 削除モードの状態を渡して再描画
+};
+
+const switchView = (view) => {
+    if (!listView || !calendarView || !showListBtn || !showCalendarBtn) return; // グローバル変数を使用
+
+    listView.style.display = view === 'list' ? 'block' : 'none';
+    calendarView.style.display = view === 'calendar' ? 'block' : 'none';
+    showListBtn.classList.toggle('active', view === 'list');
+    showCalendarBtn.classList.toggle('active', view === 'calendar');
+    if (view === 'calendar') calendar.render();
+};
+
+// ===============================================
+// ラベル編集モーダル関連
+// ===============================================
+
+const openLabelEditorModal = (task) => {
+    if (!labelEditorModal || !modalTaskText || !modalLabelsContainer) return; // グローバル変数を使用
+
+    currentlyEditingTaskId = task.id;
+    modalTaskText.textContent = task.text;
+    renderLabelCheckboxes(modalLabelsContainer, task.labels || [], false); // モーダルでは削除ボタンを表示しない
+    labelEditorModal.style.display = 'flex';
+};
+
+const closeLabelEditorModal = () => {
+    if (!labelEditorModal) return; // グローバル変数を使用
+
+    currentlyEditingTaskId = null;
+    labelEditorModal.style.display = 'none';
+};
+
+const handleModalSave = () => {
+    if (!currentlyEditingTaskId) return;
+    const task = tasks.find(t => t.id === currentlyEditingTaskId);
+    if (task) {
+        if (!modalLabelsContainer) return; // グローバル変数を使用
+
+        const selectedLabels = Array.from(modalLabelsContainer.querySelectorAll('input[name="task-label"]:checked')).map(cb => cb.value);
+        task.labels = selectedLabels;
+        renderAll();
+        saveData();
+    }
+    closeLabelEditorModal();
+};
+
+// ===============================================
+// AI関連
+// ===============================================
+
+const handleGeminiTrigger = async () => {
+    if (!geminiPrompt || !geminiTriggerBtn || !aiContent) return; // グローバル変数を使用
+
     const promptText = geminiPrompt.value.trim();
     if (!promptText || !GEMINI_API_KEY) {
         alert("プロンプトを入力するか、GeminiのAPIキーを設定してください。");
@@ -232,53 +448,49 @@ geminiTriggerBtn.addEventListener('click', async () => {
     }
 
     geminiTriggerBtn.disabled = true;
-    geminiTriggerBtn.querySelector('.default-text').style.display = 'none';
-    geminiTriggerBtn.querySelector('.loading-indicator').style.display = 'flex';
+    const defaultTextSpan = geminiTriggerBtn.querySelector('.default-text');
+    const loadingIndicatorDiv = geminiTriggerBtn.querySelector('.loading-indicator');
+
+    if (defaultTextSpan) defaultTextSpan.style.display = 'none';
+    if (loadingIndicatorDiv) loadingIndicatorDiv.style.display = 'flex';
 
     try {
-        const fullPrompt = `以下の文章からタスクを抽出し、JSON形式の配列で出力してください。各タスクにはtext, startDate, endDateのキーを含めてください。endDateが指定されていない場合はstartDateと同じ日付にしてください。日付はYYYY-MM-DD形式で。今日の日付は${new Date().toISOString().split('T')[0]}です。
+        const labelExamples = Object.keys(labels).join(', ');
+        const fullPrompt = `以下の文章からタスクを抽出し、JSON形式の配列で出力してください。\n- 各タスクには "text", "startDate", "endDate", "labels" のキーを含めてください。\n- "labels" はタスクに関連するキーワードを配列として含めてください。既存のラベル（${labelExamples}）があればそれらを優先的に使用し、なければ新しいラベルを生成してください。\n- "endDate" が指定されていない場合は "startDate" と同じ日付にしてください。\n- 日付はYYYY-MM-DD形式で。\n\n---\n\n${promptText}`;
 
----
-
-${promptText}`;        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`, {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] })
         });
         if (!response.ok) throw new Error(`Gemini APIエラー: ${response.status}`);
-        
+
         const data = await response.json();
         let jsonString = data.candidates[0].content.parts[0].text;
-        
-        // Geminiからの応答に含まれる可能性のあるマークダウンや余分なテキストを削除
         const jsonMatch = jsonString.match(/```json([\s\S]*?)```/);
         if (jsonMatch && jsonMatch[1]) {
             jsonString = jsonMatch[1];
-        } else {
-            // JSONが直接返された場合も考慮
-            const arrayStart = jsonString.indexOf('[');
-            const arrayEnd = jsonString.lastIndexOf(']');
-            if (arrayStart !== -1 && arrayEnd !== -1) {
-                jsonString = jsonString.substring(arrayStart, arrayEnd + 1);
-            }
         }
 
-        try {
-            const newTasks = JSON.parse(jsonString);
-
-            newTasks.forEach(task => {
-                const startDate = task.startDate;
-                const endDate = task.endDate || startDate; // endDateがなければstartDateを使う
-                tasks.push({ id: Date.now().toString() + Math.random(), text: task.text, startDate, endDate, completed: false });
+        const newTasks = JSON.parse(jsonString);
+        newTasks.forEach(task => {
+            (task.labels || []).forEach(labelName => {
+                if (!labels[labelName]) {
+                    labels[labelName] = `#${Math.floor(Math.random()*16777215).toString(16).padStart(6, '0')}`;
+                }
             });
-        } catch (e) {
-            console.error("JSONの解析に失敗しました:", e);
-            console.error("Geminiからの生の応答:", data.candidates[0].content.parts[0].text);
-            throw new Error("Geminiからの応答の形式が正しくありません。");
-        }
-        
+            tasks.push({
+                id: Date.now().toString() + Math.random(),
+                text: task.text,
+                startDate: task.startDate,
+                endDate: task.endDate || task.startDate,
+                completed: false,
+                labels: task.labels || []
+            });
+        });
+
         renderAll();
-        await saveTasks();
+        saveData();
         geminiPrompt.value = '';
 
     } catch (error) {
@@ -286,12 +498,7 @@ ${promptText}`;        const response = await fetch(`https://generativelanguage.
         alert("タスクの自動生成に失敗しました。コンソールでエラー内容を確認してください。");
     } finally {
         geminiTriggerBtn.disabled = false;
-        geminiTriggerBtn.querySelector('.default-text').style.display = 'inline';
-        geminiTriggerBtn.querySelector('.loading-indicator').style.display = 'none';
+        if (defaultTextSpan) defaultTextSpan.style.display = 'inline';
+        if (loadingIndicatorDiv) loadingIndicatorDiv.style.display = 'none';
     }
-});
-
-
-// --- 起動 ---
-initializeCalendar();
-loadTasks();
+};
