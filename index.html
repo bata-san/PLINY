@@ -26,9 +26,29 @@
                 <button type="submit">登録する</button>
             </form>
 
-            <div id="ai-generator">
-                <button type="button" id="ai-toggle-btn">AIでタスクを生成 ✨</button>
-                <div id="ai-content" style="display: none;">
+            <div id="label-editor" class="accordion">
+                <!-- ▼▼▼ 修正箇所 ▼▼▼ -->
+                <button type="button" id="label-editor-toggle" class="accordion-toggle">
+                    ラベルを編集する
+                    <span class="accordion-icon"></span>
+                </button>
+                <!-- ▲▲▲ 修正箇所 ▲▲▲ -->
+                <div id="label-editor-content" class="accordion-content" style="display: none;">
+                    <div id="label-editor-list">
+                        <!-- Dynamic editable label list will be rendered here -->
+                    </div>
+                    <div id="label-add-container">
+                        <!-- "Add new label" button will be rendered here -->
+                    </div>
+                </div>
+            </div>
+
+            <div id="ai-generator" class="accordion">
+                <button type="button" id="ai-toggle-btn" class="accordion-toggle">
+                    AIでタスクを生成 ✨
+                    <span class="accordion-icon"></span>
+                </button>
+                <div id="ai-content" class="accordion-content" style="display: none;">
                     <textarea id="gemini-prompt" placeholder="例: 来週はプロジェクトAの最終調整。月曜と火曜にデザイン修正。水曜にクライアントに提出。"></textarea>
                     <button id="gemini-trigger-btn">
                         <span class="default-text">生成する</span>
@@ -41,23 +61,32 @@
             </div>
         </div>
 
-        <!-- Right Pane: Content -->
+        <!-- (以降のHTMLは変更ありません) -->
         <div id="right-pane">
             <div id="view-switcher">
                 <button id="show-list-btn" class="active">リスト</button>
                 <button id="show-calendar-btn">カレンダー</button>
             </div>
-
-            <main id="list-view">
-                <div id="task-list-container"></div>
-            </main>
-            
-            <main id="calendar-view" style="display: none;">
-                <div id="calendar-container"></div>
-            </main>
+            <main id="list-view"><div id="task-list-container"></div></main>
+            <main id="calendar-view" style="display: none;"><div id="calendar-container"></div></main>
         </div>
     </div>
-
+    <div id="label-editor-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>タスクのラベルを編集</h2>
+                <span class="modal-close-btn">×</span>
+            </div>
+            <div class="modal-body">
+                <p>タスク: <strong id="modal-task-text"></strong></p>
+                <div id="modal-labels-container" class="label-checkboxes-container"></div>
+            </div>
+            <div class="modal-footer">
+                <button id="modal-cancel-btn" class="button secondary">キャンセル</button>
+                <button id="modal-save-btn" class="button primary">保存</button>
+            </div>
+        </div>
+    </div>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://npmcdn.com/flatpickr/dist/l10n/ja.js"></script>
     <script src="script.js"></script>
