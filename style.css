@@ -1,6 +1,17 @@
-/* (ファイルの先頭から.label-item-actions button:hoverまでは変更なし) */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-:root { --bg-color: #f7f8fc; --pane-bg: #ffffff; --text-color-primary: #1d1d1f; --text-color-secondary: #6e6e73; --accent-color-blue: #007aff; --accent-color-red: #ff3b30; --accent-color-green: #34c759; --border-color: #e5e5ea; --input-bg: #f0f0f5; }
+
+:root {
+    --bg-color: #f7f8fc;
+    --pane-bg: #ffffff;
+    --text-color-primary: #1d1d1f;
+    --text-color-secondary: #6e6e73;
+    --accent-color-blue: #007aff;
+    --accent-color-red: #ff3b30;
+    --accent-color-green: #34c759;
+    --border-color: #e5e5ea;
+    --input-bg: #f0f0f5;
+}
+
 body { font-family: 'Inter', sans-serif; background-color: var(--bg-color); color: var(--text-color-primary); margin: 0; line-height: 1.6; }
 #app-container { display: flex; height: 100vh; }
 #left-pane { width: 380px; flex-shrink: 0; background-color: var(--pane-bg); border-right: 1px solid var(--border-color); padding: 40px; display: flex; flex-direction: column; gap: 40px; overflow-y: auto; }
@@ -9,7 +20,7 @@ header h1 sub { font-size: 0.6em; color: var(--text-color-secondary); }
 h2 { font-size: 1.2em; margin: 0 0 10px 0; }
 #task-form { display: flex; flex-direction: column; gap: 15px; }
 input[type="text"], select, textarea { width: 100%; padding: 14px; border-radius: 8px; border: 1px solid var(--border-color); font-size: 1em; box-sizing: border-box; background-color: var(--input-bg); font-family: 'Inter', sans-serif; }
-select { appearance: none; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right .75rem center; background-size: 16px 12px; }
+select { appearance: none; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%233a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right .75rem center; background-size: 16px 12px; }
 button { padding: 14px; border-radius: 8px; border: none; font-size: 1em; font-weight: 600; cursor: pointer; box-sizing: border-box; width: 100%; }
 #task-form button { background-color: var(--accent-color-blue); color: #fff; }
 .accordion { border: 1px solid var(--border-color); border-radius: 8px; }
@@ -44,8 +55,6 @@ button { padding: 14px; border-radius: 8px; border: none; font-size: 1em; font-w
 .label-item .label-item-display { display: flex; }
 .label-item.editing .label-item-display, .label-item.editing .action-edit-delete { display: none; }
 .label-item.editing .label-item-editor, .label-item.editing .action-save-cancel { display: flex; }
-
-/* Right Pane & Task Card */
 #right-pane { flex-grow: 1; padding: 40px; overflow-y: auto; display: flex; flex-direction: column; }
 #view-switcher { display: flex; justify-content: flex-end; margin-bottom: 30px; }
 #view-switcher button { padding: 8px 20px; border: 1px solid var(--border-color); background: transparent; color: var(--text-color-secondary); cursor: pointer; }
@@ -53,28 +62,39 @@ button { padding: 14px; border-radius: 8px; border: none; font-size: 1em; font-w
 #view-switcher button:last-child { border-radius: 0 8px 8px 0; border-left: none; }
 #view-switcher button.active { background: var(--accent-color-blue); color: #fff; border-color: var(--accent-color-blue); }
 #list-view { flex-grow: 1; overflow-y: auto; }
-#task-list-container { display: grid; grid-template-columns: 1fr; gap: 10px; /* Gapを少し詰める */ }
-.task-card { background: var(--pane-bg); border: 1px solid var(--border-color); border-left: 5px solid var(--accent-color-blue); border-radius: 8px; padding: 20px; display: flex; flex-direction: column; gap: 16px; position: relative; }
+#task-list-container { display: grid; grid-template-columns: 1fr; gap: 10px; }
 
-/* ▼▼▼ 追加/修正箇所 ▼▼▼ */
+/* ▼▼▼ 修正箇所 ▼▼▼ */
+.task-card {
+    background: var(--pane-bg);
+    border: 1px solid var(--border-color);
+    border-left: 5px solid var(--accent-color-blue);
+    border-radius: 8px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    position: relative;
+    box-sizing: border-box; /* ← これが重要！ */
+}
+
 .task-card.is-child {
     margin-left: 40px;
-    width: calc(100% - 40px);
+    width: auto; /* ← calc()をやめてautoに */
 }
+/* ▲▲▲ 修正箇所 ▲▲▲ */
 
 .task-card.is-child::before {
     content: '';
     position: absolute;
     left: -22px;
-    top: -5px; /* 親タスクとのgapを考慮 */
+    top: -5px;
     height: 100%;
     border-left: 2px solid var(--border-color);
     border-bottom: 2px solid var(--border-color);
     width: 15px;
     border-radius: 0 0 0 8px;
 }
-/* ▲▲▲ 追加/修正箇所 ▲▲▲ */
-
 .task-card.completed { border-left-color: #a0a0a0; }
 .task-card.completed .task-text { text-decoration: line-through; color: var(--text-color-secondary); }
 .task-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 15px; }
@@ -83,7 +103,7 @@ button { padding: 14px; border-radius: 8px; border: none; font-size: 1em; font-w
 .task-label-badge { font-size: 0.8em; padding: 3px 8px; border-radius: 12px; color: #fff; font-weight: 500; }
 .task-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
 .task-due-date { font-size: 0.9em; color: var(--text-color-secondary); }
-.task-actions { display: flex; flex-wrap: wrap; gap: 10px; } /* 折り返しを許容 */
+.task-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .task-actions button { font-size: 0.8em; padding: 6px 12px; border-radius: 6px; cursor: pointer; width: auto; }
 .edit-labels-btn, .set-parent-btn { background-color: #f0f0f0; border: none; color: var(--text-color-primary); }
 .complete-btn { background-color: transparent; border: 1px solid #ccc; color: var(--text-color-primary); }
