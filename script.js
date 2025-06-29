@@ -27,6 +27,97 @@ let undoStack = [];
 let redoStack = [];
 
 // ===============================================
+// 履歴管理
+// ===============================================
+const HISTORY_KEY = 'pliny_task_history';
+
+// --- ここから履歴の保存・取得をJSONBINに統一 ---
+async function saveHistoryEntry(entry) {
+    // 最新データ取得
+    let data;
+    try {
+        const res = await fetch(`${API_URL}/latest`, { headers: { 'X-Access-Key': ACCESS_KEY } });
+        data = res.ok ? await res.json() : { record: {} };
+    } catch {
+        data = { record: {} };
+    }
+    const record = data.record || {};
+    const history = Array.isArray(record.history) ? record.history : [];
+    history.push({ ...entry, timestamp: new Date().toISOString() });
+
+    // 最新のtasks/labelsを取得してマージ
+    const latestTasks = Array.isArray(record.tasks) ? record.tasks : [];
+    const latestLabels = Array.isArray(record.labels) ? record.labels : [];
+
+    // ローカルのtasks/labelsの差分をマージ（追加・更新のみ、削除はしない）
+    // 1. tasks
+    const mergedTasksMap = new Map(latestTasks.map(t => [t.id, t]));
+    tasks.forEach(t => {
+        mergedTasksMap.set(t.id, { ...mergedTasksMap.get(t.id), ...t });
+    });
+    const mergedTasks = Array.from(mergedTasksMap.values());
+    // 2. labels
+    const mergedLabelsMap = new Map(latestLabels.map(l => [l.id, l]));
+    labels.forEach(l => {
+        mergedLabelsMap.set(l.id, { ...mergedLabelsMap.get(l.id), ...l });
+    });
+    const mergedLabels = Array.from(mergedLabelsMap.values());
+
+    // JSONBINに保存
+    try {
+        await fetch(API_URL, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'X-Master-Key': MASTER_KEY, 'X-Bin-Versioning': 'false' },
+            body: JSON.stringify({ tasks: mergedTasks, labels: mergedLabels, history })
+        });
+    } catch (e) {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    }
+}
+
+async function getHistory() {
+    try {
+        const res = await fetch(`${API_URL}/latest`, { headers: { 'X-Access-Key': ACCESS_KEY } });
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        return Array.isArray(data.record?.history) ? data.record.history : [];
+    } catch {
+        // オフライン時はローカルストレージ
+        try {
+            return JSON.parse(localStorage.getItem(HISTORY_KEY)) || [];
+        } catch {
+            return [];
+        }
+    }
+}
+
+async function clearHistory() {
+    // 最新データ取得
+    let data;
+    try {
+        const res = await fetch(`${API_URL}/latest`, { headers: { 'X-Access-Key': ACCESS_KEY } });
+        data = res.ok ? await res.json() : { record: {} };
+    } catch {
+        data = { record: {} };
+    }
+    const record = data.record || {};
+    // tasks/labelsは既存のものを維持
+    const tasksToSave = Array.isArray(record.tasks) ? record.tasks : tasks;
+    const labelsToSave = Array.isArray(record.labels) ? record.labels : labels;
+
+    // historyを空配列で保存
+    try {
+        await fetch(API_URL, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'X-Master-Key': MASTER_KEY, 'X-Bin-Versioning': 'false' },
+            body: JSON.stringify({ tasks: tasksToSave, labels: labelsToSave, history: [] })
+        });
+    } catch (e) {
+        localStorage.removeItem(HISTORY_KEY);
+    }
+}
+
+// ===============================================
 // 初期化処理
 // ===============================================
 document.addEventListener('DOMContentLoaded', () => {
@@ -41,6 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeIcons();
     bindGlobalEvents();
     loadData();
+    initializeHistoryUI();
 });
 
 function initializeIcons() {
@@ -66,6 +158,7 @@ function initializeCalendar() {
 // ===============================================
 async function loadData() {
     const loadingOverlay = document.getElementById('loading-overlay');
+    if (!loadingOverlay) return; // ローディングオーバーレイがなければ何もしない
     loadingOverlay.style.display = 'flex';
     try {
         const res = await fetch(`${API_URL}/latest`, { headers: { 'X-Access-Key': ACCESS_KEY } });
@@ -90,16 +183,41 @@ async function loadData() {
     } catch (e) {
         alert("データの読み込みに失敗しました。"); console.error(e);
     } finally {
-        loadingOverlay.style.display = 'none';
+        if (loadingOverlay) loadingOverlay.style.display = 'none';
     }
 }
 
 async function saveData(tasksToSave = tasks, labelsToSave = labels) {
+    // 競合対策: 最新データ取得してマージ
+    let data;
+    try {
+        const res = await fetch(`${API_URL}/latest`, { headers: { 'X-Access-Key': ACCESS_KEY } });
+        data = res.ok ? await res.json() : { record: {} };
+    } catch {
+        data = { record: {} };
+    }
+    const record = data.record || {};
+    const latestTasks = Array.isArray(record.tasks) ? record.tasks : [];
+    const latestLabels = Array.isArray(record.labels) ? record.labels : [];
+
+    // マージ（追加・更新のみ、削除はしない）
+    const mergedTasksMap = new Map(latestTasks.map(t => [t.id, t]));
+    tasksToSave.forEach(t => {
+        mergedTasksMap.set(t.id, { ...mergedTasksMap.get(t.id), ...t });
+    });
+    const mergedTasks = Array.from(mergedTasksMap.values());
+
+    const mergedLabelsMap = new Map(latestLabels.map(l => [l.id, l]));
+    labelsToSave.forEach(l => {
+        mergedLabelsMap.set(l.id, { ...mergedLabelsMap.get(l.id), ...l });
+    });
+    const mergedLabels = Array.from(mergedLabelsMap.values());
+
     try {
         const res = await fetch(API_URL, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'X-Master-Key': MASTER_KEY, 'X-Bin-Versioning': 'false' },
-            body: JSON.stringify({ tasks: tasksToSave, labels: labelsToSave })
+            body: JSON.stringify({ tasks: mergedTasks, labels: mergedLabels, history: Array.isArray(record.history) ? record.history : [] })
         });
         if (!res.ok) throw new Error(`保存失敗: ${res.status}`);
     } catch (e) {
@@ -242,6 +360,8 @@ function renderLabelList() {
         deleteBtn.addEventListener('click', () => {
             if (confirm(`「${label.name}」ラベルを削除しますか？`)) {
                 pushToUndoStack();
+                // 履歴記録
+                saveHistoryEntry({ action: 'ラベル削除', detail: { name: label.name, id: label.id } });
                 labels = labels.filter(l => l.id !== label.id);
                 tasks.forEach(t => {
                     t.labelIds = t.labelIds.filter(id => id !== label.id);
@@ -314,6 +434,8 @@ function renderLabelAddForm() {
                 priority: (labels.length > 0 ? Math.max(...labels.map(l => l.priority || 0)) : 0) + 1
             };
             labels.push(newLabel);
+            // 履歴記録
+            saveHistoryEntry({ action: 'ラベル追加', detail: { name: newLabel.name, id: newLabel.id } });
             saveDataAndRender();
             nameInput.value = '';
         }
@@ -515,18 +637,36 @@ function bindGlobalEvents() {
         }
     });
 
-    document.getElementById('task-form').addEventListener('submit', async e => {
+    // 既存のsubmitイベントリスナーを一つだけ登録するように修正
+    // ただし、flatpickrのインスタンスが消えないようにinput要素は再生成しない
+    const taskForm = document.getElementById('task-form');
+    // 既存のイベントリスナーを全て削除
+    const newTaskForm = taskForm.cloneNode(true);
+
+    // flatpickrのinputは再生成せず、元のinputを移植
+    const oldDueDate = document.getElementById('task-due-date');
+    const newDueDate = newTaskForm.querySelector('#task-due-date');
+    if (newDueDate && oldDueDate && oldDueDate._flatpickr) {
+        newDueDate.replaceWith(oldDueDate);
+        // 新しいフォームのinput参照を更新
+        // これでflatpickrインスタンスが維持される
+    }
+
+    taskForm.parentNode.replaceChild(newTaskForm, taskForm);
+
+    newTaskForm.addEventListener('submit', async e => {
         e.preventDefault();
         const taskInput = document.getElementById('task-input');
         const taskDueDate = document.getElementById('task-due-date');
         const text = taskInput.value.trim();
-        const dates = taskDueDate._flatpickr.selectedDates;
+        // flatpickrのインスタンスが必ず存在するように
+        const dates = taskDueDate._flatpickr ? taskDueDate._flatpickr.selectedDates : [];
         const selectedLabelIds = Array.from(document.querySelectorAll('#add-task-label-selector .label-checkbox-item.selected input')).map(input => input.value);
 
         if (!text || dates.length === 0) return;
-        
+
         pushToUndoStack();
-        
+
         const newTask = normalizeTask({
             id: Date.now().toString(),
             text,
@@ -535,11 +675,13 @@ function bindGlobalEvents() {
             labelIds: selectedLabelIds
         });
         tasks.push(newTask);
-        
+        // 履歴記録
+        saveHistoryEntry({ action: 'タスク追加', detail: { text: newTask.text, id: newTask.id } });
+
         await saveDataAndRender();
-        
+
         taskInput.value = '';
-        taskDueDate._flatpickr.clear();
+        if (taskDueDate._flatpickr) taskDueDate._flatpickr.clear();
         document.querySelectorAll('#add-task-label-selector .label-checkbox-item.selected').forEach(item => item.classList.remove('selected'));
     });
 
@@ -563,6 +705,8 @@ function bindGlobalEvents() {
             case 'complete': 
                 task.completed = !task.completed; 
                 needsSave = true; 
+                // 履歴記録
+                saveHistoryEntry({ action: 'タスク完了', detail: { id: task.id, text: task.text, completed: task.completed } });
                 break;
             case 'edit-labels': 
                 e.stopPropagation();
@@ -573,6 +717,8 @@ function bindGlobalEvents() {
                 const getDescendants = id => tasks.filter(t => t.parentId === id).flatMap(c => [c.id, ...getDescendants(c.id)]);
                 const descendantIds = getDescendants(taskId);
                 if (confirm(`このタスクと${descendantIds.length}個の子タスクを削除しますか？`)) {
+                    // 履歴記録
+                    saveHistoryEntry({ action: 'タスク削除', detail: { id: task.id, text: task.text } });
                     tasks = tasks.filter(t => ![taskId, ...descendantIds].includes(t.id));
                     needsSave = true;
                 } else { 
@@ -625,25 +771,7 @@ function bindGlobalEvents() {
     window.addEventListener('resize', () => {
         if (calendar) {
             calendar.changeView(window.innerWidth < 768 ? 'listWeek' : 'dayGridMonth');
-            calendar.updateSize();
         }
-    });
-}
-
-function bindAccordionEvents() {
-    document.querySelectorAll('.accordion-toggle').forEach(btn => {
-        // イベントリスナーが重複しないように、一度削除してから再設定する
-        const newBtn = btn.cloneNode(true);
-        btn.parentNode.replaceChild(newBtn, btn);
-        newBtn.addEventListener('click', function () { 
-            this.classList.toggle('active');
-            const content = this.nextElementSibling;
-            if (content.style.display === 'flex') {
-                content.style.display = 'none';
-            } else {
-                content.style.display = 'flex';
-            }
-        });
     });
 }
 
@@ -701,6 +829,9 @@ function pushToUndoStack() {
     undoStack.push(JSON.parse(JSON.stringify({ tasks, labels })));
     redoStack = []; // Redoスタックはクリア
     updateUndoRedoButtons();
+
+    // 履歴記録（直前の状態を保存）
+    saveHistoryEntry({ action: '編集前の状態', detail: { tasks, labels } });
 }
 
 async function handleUndo() {
@@ -959,5 +1090,174 @@ function processAiActions(actions) {
         } catch (e) {
             console.error(`アクションの処理に失敗しました: ${action.action}`, e);
         }
+    });
+}
+
+// ===============================================
+// 履歴UI
+// ===============================================
+function initializeHistoryUI() {
+    // 履歴ボタン追加
+    const btn = document.createElement('button');
+    btn.id = 'history-btn';
+    btn.title = '編集履歴を見る';
+    btn.innerHTML = `<svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 6v6l4 2"/></svg>`;
+    btn.addEventListener('click', showHistoryModal);
+    document.getElementById('global-actions').appendChild(btn);
+
+    // 履歴モーダル追加
+    if (!document.getElementById('history-modal')) {
+        const modal = document.createElement('div');
+        modal.id = 'history-modal';
+        modal.className = 'modal-overlay';
+        modal.style.display = 'none';
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width:600px;">
+                <div class="modal-header">
+                    <h3>編集履歴</h3>
+                    <button id="history-modal-close" style="background:none;border:none;font-size:1.5em;float:right;cursor:pointer;">×</button>
+                </div>
+                <div class="modal-body" id="history-modal-body" style="max-height:400px;overflow:auto;"></div>
+                <div class="modal-footer">
+                    <button id="history-clear-btn" class="button secondary">履歴をクリア</button>
+                    <button id="history-modal-ok-btn" class="button primary">閉じる</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        document.getElementById('history-modal-close').onclick =
+        document.getElementById('history-modal-ok-btn').onclick = () => {
+            modal.style.display = 'none';
+        };
+        document.getElementById('history-clear-btn').onclick = async () => {
+            if (confirm('履歴をすべて削除しますか？')) {
+                await clearHistory();
+                renderHistoryModal();
+            }
+        };
+    }
+}
+
+function showHistoryModal() {
+    renderHistoryModal();
+    document.getElementById('history-modal').style.display = 'flex';
+}
+
+// renderHistoryModalのhistory取得をawaitに変更
+async function renderHistoryModal() {
+    const body = document.getElementById('history-modal-body');
+    const history = await getHistory();
+    if (history.length === 0) {
+        body.innerHTML = '<p>履歴はありません。</p>';
+        return;
+    }
+
+    // タスク配列からツリー構造を作る
+    function buildTaskTree(tasks) {
+        const map = new Map(tasks.map(t => [t.id, { ...t, children: [] }]));
+        const roots = [];
+        map.forEach(task => {
+            if (task.parentId && map.has(task.parentId)) {
+                map.get(task.parentId).children.push(task);
+            } else {
+                roots.push(task);
+            }
+        });
+        return roots;
+    }
+
+    // ツリーをHTMLリストで描画（編集前の状態用、通常履歴には使わない）
+    function renderTaskTree(nodes, level = 0) {
+        if (!nodes || nodes.length === 0) return '';
+        return `<ul style="margin-left:${level * 18}px;list-style:none;padding-left:0;">` +
+            nodes.map(node => `
+                <li>
+                    <span style="font-weight:500;">${node.text || '(無題)'}${node.completed ? ' ✅' : ''}</span>
+                    <span style="color:#888;font-size:0.9em;">(${node.id})</span>
+                    ${renderTaskTree(node.children, level + 1)}
+                </li>
+            `).join('') +
+            `</ul>`;
+    }
+
+    // 履歴の内容を日本語で説明する
+    function describeHistoryEntry(h) {
+        if (!h.detail) return '';
+        // タスク追加
+        if (h.action === 'タスク追加' && h.detail.text) {
+            const time = h.timestamp ? new Date(h.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+            return `${time}：「${h.detail.text}」というタスクを追加しました。`;
+        }
+        // タスク削除
+        if (h.action === 'タスク削除' && h.detail.text) {
+            const time = h.timestamp ? new Date(h.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+            return `${time}：「${h.detail.text}」というタスクを削除しました。`;
+        }
+        // タスク完了
+        if (h.action === 'タスク完了' && h.detail.text) {
+            const time = h.timestamp ? new Date(h.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+            return `${time}：「${h.detail.text}」を${h.detail.completed ? '完了' : '未完了'}にしました。`;
+        }
+        // ラベル追加
+        if (h.action === 'ラベル追加' && h.detail.name) {
+            const time = h.timestamp ? new Date(h.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+            return `${time}：ラベル「${h.detail.name}」を追加しました。`;
+        }
+        // ラベル削除
+        if (h.action === 'ラベル削除' && h.detail.name) {
+            const time = h.timestamp ? new Date(h.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+            return `${time}：ラベル「${h.detail.name}」を削除しました。`;
+        }
+        // 日程変更
+        if (h.action === '日程変更' && h.detail.text && h.detail.startDate && h.detail.endDate) {
+            const time = h.timestamp ? new Date(h.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+            return `${time}：「${h.detail.text}」の日程を${h.detail.startDate}～${h.detail.endDate}に変更しました。`;
+        }
+        // ラベル付与
+        if (h.action === 'ラベル付与' && h.detail.text && h.detail.labelName) {
+            const time = h.timestamp ? new Date(h.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+            return `${time}：「${h.detail.text}」にラベル「${h.detail.labelName}」を付けました。`;
+        }
+        // ラベル除去
+        if (h.action === 'ラベル除去' && h.detail.text && h.detail.labelName) {
+            const time = h.timestamp ? new Date(h.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+            return `${time}：「${h.detail.text}」からラベル「${h.detail.labelName}」を外しました。`;
+        }
+        // その他
+        return '';
+    }
+
+    body.innerHTML = history.map(h => {
+        let description = describeHistoryEntry(h);
+        // 編集前の状態は表示しない
+        if (h.action === '編集前の状態') return '';
+        return `
+        <div style="border-bottom:1px solid #eee;padding:8px 0;">
+            <div style="font-size:0.95em;color:#007aff;font-weight:600;">${h.action}</div>
+            <div style="margin-bottom:4px;">${description}</div>
+            <div style="font-size:0.8em;color:#888;">${new Date(h.timestamp).toLocaleString('ja-JP')}</div>
+        </div>
+        `;
+    }).reverse().join('');
+}
+
+// ===============================================
+// アコーディオンイベント
+// ===============================================
+function bindAccordionEvents() {
+    document.querySelectorAll('.accordion-toggle').forEach(btn => {
+        // イベントリスナーが重複しないように、一度削除してから再設定する
+        const newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+        newBtn.addEventListener('click', function () { 
+            this.classList.toggle('active');
+            const content = this.nextElementSibling;
+            if (content.style.display === 'flex') {
+                content.style.display = 'none';
+            } else {
+                content.style.display = 'flex';
+            }
+        });
     });
 }
