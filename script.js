@@ -25,6 +25,7 @@ let labels = [];
 let calendar;
 let undoStack = [];
 let redoStack = [];
+let currentBinVersion = null; // JSONBIN.ioのバージョン管理用
 
 // ===============================================
 // 初期化処理
@@ -77,12 +78,14 @@ async function loadData() {
                     { id: 'default-2', name: '優先度: 中', color: '#ff9500', priority: 2 },
                     { id: 'default-3', name: '優先度: 低', color: '#34c759', priority: 3 }
                 ]; 
-                await saveData(); 
+                // 初期データ保存時にはバージョンチェックをスキップ
+                await saveData(tasks, labels, true); 
                 renderAll(); 
                 return; 
             }
             throw new Error(`サーバーエラー: ${res.status}`);
         }
+        currentBinVersion = res.headers.get('X-Bin-Meta-Version');
         const data = await res.json();
         tasks = Array.isArray(data.record?.tasks) ? data.record.tasks.map(normalizeTask) : [];
         labels = Array.isArray(data.record?.labels) ? data.record.labels : [];
@@ -94,16 +97,40 @@ async function loadData() {
     }
 }
 
-async function saveData(tasksToSave = tasks, labelsToSave = labels) {
+async function saveData(tasksToSave = tasks, labelsToSave = labels, isInitialSave = false) {
+    const headers = {
+        'Content-Type': 'application/json',
+        'X-Master-Key': MASTER_KEY,
+        'X-Bin-Versioning': 'false'
+    };
+
+    // 初回保存時以外はIf-Matchヘッダーを追加
+    if (!isInitialSave && currentBinVersion) {
+        headers['If-Match'] = currentBinVersion;
+    }
+
     try {
         const res = await fetch(API_URL, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'X-Master-Key': MASTER_KEY, 'X-Bin-Versioning': 'false' },
+            headers: headers,
             body: JSON.stringify({ tasks: tasksToSave, labels: labelsToSave })
         });
-        if (!res.ok) throw new Error(`保存失敗: ${res.status}`);
+
+        if (res.status === 412) { // Precondition Failed
+            alert("データの競合が発生しました。他の端末でデータが更新された可能性があります。最新のデータを読み込み直します。");
+            await loadData(); // 最新のデータを再読み込み
+            return; // 保存処理を中断
+        } else if (!res.ok) {
+            throw new Error(`保存失敗: ${res.status}`);
+        }
+
+        // 保存成功後、新しいバージョンを更新
+        currentBinVersion = res.headers.get('X-Bin-Meta-Version');
+
     } catch (e) {
-        alert("データの保存に失敗しました。UIをリロードします。"); window.location.reload();
+        alert("データの保存に失敗しました。UIをリロードします。"); 
+        console.error(e);
+        window.location.reload();
     }
 }
 
