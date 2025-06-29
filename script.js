@@ -1,5 +1,6 @@
 // ===============================================
 // 定数
+// ===============================================
 const MASTER_KEY = '$2a$10$l.shMPQkZut9GF8QmO5kjuUe5EuHpRA4sATqrlfXG.lNjF1n0clg.';
 const ACCESS_KEY = '$2a$10$h10RX1N2om3YrLjEs313gOKLSH5XN2ov/qECHWf/qoh5ex4Sz3JpG';
 const BIN_ID = '685bfb988561e97a502b9056';
@@ -16,14 +17,18 @@ const ICONS = {
     chevron: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`,
 };
 
-// 状態
+// ===============================================
+// 状態管理
+// ===============================================
 let tasks = [];
 let labels = [];
 let calendar;
 let undoStack = [];
 let redoStack = [];
 
-// 初期化
+// ===============================================
+// 初期化処理
+// ===============================================
 document.addEventListener('DOMContentLoaded', () => {
     flatpickr(document.getElementById('task-due-date'), {
         mode: "range",
@@ -38,25 +43,27 @@ document.addEventListener('DOMContentLoaded', () => {
     loadData();
 });
 
-// アイコン設定
 function initializeIcons() {
     document.getElementById('undo-btn').innerHTML = ICONS.undo;
     document.getElementById('redo-btn').innerHTML = ICONS.redo;
 }
 
-// カレンダー初期化
 function initializeCalendar() {
     calendar = new FullCalendar.Calendar(document.getElementById('calendar-container'), {
         initialView: window.innerWidth < 768 ? 'listWeek' : 'dayGridMonth',
         locale: 'ja',
         headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,listWeek' },
         height: '100%',
-        events: []
+        events: [],
+        editable: true, // ドラッグ＆ドロップを有効化
+        eventDrop: handleEventDrop // ドロップ時のハンドラ
     });
     calendar.render();
 }
 
-// データロード
+// ===============================================
+// データ管理 (JSONBIN)
+// ===============================================
 async function loadData() {
     const loadingOverlay = document.getElementById('loading-overlay');
     loadingOverlay.style.display = 'flex';
@@ -87,7 +94,6 @@ async function loadData() {
     }
 }
 
-// データ保存
 async function saveData(tasksToSave = tasks, labelsToSave = labels) {
     try {
         const res = await fetch(API_URL, {
@@ -101,32 +107,9 @@ async function saveData(tasksToSave = tasks, labelsToSave = labels) {
     }
 }
 
-// タスク正規化
-function normalizeTask(task) {
-    return {
-        id: task.id || `id-${Date.now()}-${Math.random()}`,
-        text: task.text || '(無題のタスク)',
-        startDate: task.startDate || new Date().toISOString().split('T')[0],
-        endDate: task.endDate || task.startDate || new Date().toISOString().split('T')[0],
-        completed: !!task.completed,
-        labelIds: Array.isArray(task.labelIds) ? task.labelIds : [],
-        parentId: task.parentId || null,
-        isCollapsed: task.isCollapsed ?? true
-    };
-}
-
-// 日付フォーマット
-function formatDueDate(start, end) {
-    if (!start) return '';
-    try {
-        const startDate = new Date(start + 'T00:00:00');
-        if (!end || start === end) return startDate.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' });
-        const endDate = new Date(end + 'T00:00:00');
-        return `${startDate.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })} → ${endDate.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}`;
-    } catch (e) { return start; }
-}
-
-// 全体描画
+// ===============================================
+// 描画処理
+// ===============================================
 function renderAll() {
     renderTaskList();
     renderCalendar();
@@ -136,7 +119,6 @@ function renderAll() {
     bindAccordionEvents();
 }
 
-// タスクリスト描画
 function renderTaskList() {
     const container = document.getElementById('task-list-container');
     container.innerHTML = '';
@@ -194,7 +176,6 @@ function renderTaskList() {
     roots.sort((a, b) => new Date(a.startDate) - new Date(b.startDate)).forEach(root => draw(root, container, 1));
 }
 
-// カレンダー描画
 function renderCalendar() {
     if (!calendar) return;
     const events = tasks.map(task => {
@@ -214,7 +195,6 @@ function renderCalendar() {
     calendar.addEventSource(events);
 }
 
-// ラベルエディタ描画
 function renderLabelEditor() {
     renderLabelList();
     renderLabelAddForm();
@@ -372,6 +352,9 @@ function renderAddTaskLabelSelector() {
     });
 }
 
+// ===============================================
+// UIコンポーネント (ポップオーバー)
+// ===============================================
 function showColorPalette(anchorElement, label) {
     closeAllPopovers();
     const palette = document.createElement('div');
@@ -452,95 +435,69 @@ function showLabelSelectPopover(anchorElement, task) {
 }
 
 function positionPopover(anchor, popover) {
-    // 親要素（#app-container）からはみ出さず、スクロールバーが出ないように配置
     const anchorRect = anchor.getBoundingClientRect();
     const parent = document.getElementById('app-container');
     const parentRect = parent.getBoundingClientRect();
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-
-    // 一時的に表示してサイズを取得
+    
     popover.style.visibility = 'hidden';
     popover.style.display = 'block';
-    popover.style.maxHeight = '';
-    popover.style.overflowY = '';
     const popoverRect = popover.getBoundingClientRect();
 
-    // 初期位置: アンカーの下、左端をアンカーの左端に合わせる
     let left = anchorRect.left;
     let top = anchorRect.bottom + 8;
 
-    // 右端が親からはみ出す場合は左側に寄せる
     if (left + popoverRect.width > parentRect.right - 8) {
         left = parentRect.right - popoverRect.width - 8;
     }
-    // 左端が親からはみ出す場合は親の左端に
     if (left < parentRect.left + 8) {
         left = parentRect.left + 8;
     }
-    // 下端が親からはみ出す場合はアンカーの上に表示
-    let fitsBelow = (top + popoverRect.height <= parentRect.bottom - 8);
-    if (!fitsBelow) {
-        // 上に表示
+    if (top + popoverRect.height > parentRect.bottom - 8) {
         top = anchorRect.top - popoverRect.height - 8;
-        // それでも上にはみ出す場合は親の上端に
-        if (top < parentRect.top + 8) {
-            top = parentRect.top + 8;
-        }
+    }
+     if (top < parentRect.top + 8) {
+        top = parentRect.top + 8;
     }
 
-    // ポップオーバーの高さが親の高さを超える場合はmax-heightを設定し、overflow: auto
-    let maxHeight = parentRect.bottom - top - 8;
-    if (maxHeight > parentRect.height - 16) {
-        maxHeight = parentRect.height - 16;
-    }
-    if (popoverRect.height > maxHeight) {
-        popover.style.maxHeight = `${maxHeight}px`;
-        popover.style.overflowY = 'auto';
-    } else {
-        popover.style.maxHeight = '';
-        popover.style.overflowY = '';
-    }
-
-    // スクロールを考慮して絶対座標→ページ座標に変換
     popover.style.position = 'absolute';
     popover.style.left = `${left + window.scrollX}px`;
     popover.style.top = `${top + window.scrollY}px`;
     popover.style.visibility = '';
-    // displayは呼び出し元で設定
 }
 
 function closeAllPopovers() {
     document.querySelectorAll('.popover').forEach(p => p.remove());
 }
 
-// ラベル優先度テキスト
-function getPriorityText(priority) { return { 1: '高', 2: '中', 3: '低' }[priority] || '未設定'; }
+// ===============================================
+// ヘルパー関数
+// ===============================================
+function normalizeTask(task) {
+    return {
+        id: task.id || `id-${Date.now()}-${Math.random()}`,
+        text: task.text || '(無題のタスク)',
+        startDate: task.startDate || new Date().toISOString().split('T')[0],
+        endDate: task.endDate || task.startDate || new Date().toISOString().split('T')[0],
+        completed: !!task.completed,
+        labelIds: Array.isArray(task.labelIds) ? task.labelIds : [],
+        parentId: task.parentId || null,
+        isCollapsed: task.isCollapsed ?? true
+    };
+}
 
-// ラベルのうち最も優先度が高いもの
+function formatDueDate(start, end) {
+    if (!start) return '';
+    try {
+        const startDate = new Date(start + 'T00:00:00');
+        if (!end || start === end) return startDate.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' });
+        const endDate = new Date(end + 'T00:00:00');
+        return `${startDate.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })} → ${endDate.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}`;
+    } catch (e) { return start; }
+}
+
 function getHighestPriorityLabel(task) {
     if (!task.labelIds || task.labelIds.length === 0) return null;
     return task.labelIds.map(id => labels.find(l => l.id.toString() === id.toString())).filter(Boolean).sort((a, b) => a.priority - b.priority)[0];
-}
-
-// アコーディオンイベント
-function bindAccordionEvents() {
-    document.querySelectorAll('.accordion-toggle').forEach(btn => {
-        const existingBtn = btn.cloneNode(true);
-        btn.parentNode.replaceChild(existingBtn, btn);
-        existingBtn.addEventListener('click', function () { this.classList.toggle('active'); });
-    });
-}
-
-// undo/redoボタン
-function updateUndoRedoButtons() {
-    document.getElementById('undo-btn').disabled = undoStack.length === 0;
-    document.getElementById('redo-btn').disabled = redoStack.length === 0;
-}
-function pushToUndoStack() {
-    undoStack.push(JSON.parse(JSON.stringify({ tasks, labels })));
-    redoStack = [];
-    updateUndoRedoButtons();
 }
 
 async function saveDataAndRender() {
@@ -548,7 +505,9 @@ async function saveDataAndRender() {
     await saveData();
 }
 
-// グローバルイベント
+// ===============================================
+// イベントハンドラ
+// ===============================================
 function bindGlobalEvents() {
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.popover') && !e.target.closest('[data-action="edit-labels"]')) {
@@ -562,7 +521,7 @@ function bindGlobalEvents() {
         const taskDueDate = document.getElementById('task-due-date');
         const text = taskInput.value.trim();
         const dates = taskDueDate._flatpickr.selectedDates;
-        const selectedLabelIds = Array.from(document.querySelectorAll('#add-task-label-selector input:checked')).map(input => input.value);
+        const selectedLabelIds = Array.from(document.querySelectorAll('#add-task-label-selector .label-checkbox-item.selected input')).map(input => input.value);
 
         if (!text || dates.length === 0) return;
         
@@ -577,12 +536,11 @@ function bindGlobalEvents() {
         });
         tasks.push(newTask);
         
-        saveDataAndRender();
+        await saveDataAndRender();
         
         taskInput.value = '';
         taskDueDate._flatpickr.clear();
         document.querySelectorAll('#add-task-label-selector .label-checkbox-item.selected').forEach(item => item.classList.remove('selected'));
-        document.querySelectorAll('#add-task-label-selector input:checked').forEach(input => input.checked = false);
     });
 
     document.getElementById('task-list-container').addEventListener('click', async e => {
@@ -594,10 +552,18 @@ function bindGlobalEvents() {
         const taskId = card.dataset.taskId;
         const task = tasks.find(t => t.id === taskId);
         if (!task) return;
+
         let needsSave = false, needsRender = true;
+        pushToUndoStack();
+
         switch (action) {
-            case 'toggle': task.isCollapsed = !task.isCollapsed; break;
-            case 'complete': pushToUndoStack(); task.completed = !task.completed; needsSave = true; break;
+            case 'toggle': 
+                task.isCollapsed = !task.isCollapsed; 
+                break;
+            case 'complete': 
+                task.completed = !task.completed; 
+                needsSave = true; 
+                break;
             case 'edit-labels': 
                 e.stopPropagation();
                 showLabelSelectPopover(target, task); 
@@ -607,10 +573,11 @@ function bindGlobalEvents() {
                 const getDescendants = id => tasks.filter(t => t.parentId === id).flatMap(c => [c.id, ...getDescendants(c.id)]);
                 const descendantIds = getDescendants(taskId);
                 if (confirm(`このタスクと${descendantIds.length}個の子タスクを削除しますか？`)) {
-                    pushToUndoStack();
                     tasks = tasks.filter(t => ![taskId, ...descendantIds].includes(t.id));
                     needsSave = true;
-                } else { needsRender = false; }
+                } else { 
+                    needsRender = false; 
+                }
                 break;
         }
         if (needsRender) renderAll();
@@ -644,72 +611,353 @@ function bindGlobalEvents() {
         draggedTask.parentId = targetId;
         const targetTask = tasks.find(t => t.id === targetId);
         if (targetTask) targetTask.isCollapsed = false;
-        saveDataAndRender();
+        await saveDataAndRender();
     });
 
-    document.getElementById('show-list-btn').addEventListener('click', () => {
-        document.getElementById('list-view').style.display = 'block';
-        document.getElementById('calendar-view').style.display = 'none';
-        document.getElementById('show-list-btn').classList.add('active');
-        document.getElementById('show-calendar-btn').classList.remove('active');
-        document.getElementById('view-title').textContent = 'タスクリスト';
-    });
-
-    document.getElementById('show-calendar-btn').addEventListener('click', () => {
-        document.getElementById('list-view').style.display = 'none';
-        document.getElementById('calendar-view').style.display = 'flex';
-        document.getElementById('show-list-btn').classList.remove('active');
-        document.getElementById('show-calendar-btn').classList.add('active');
-        document.getElementById('view-title').textContent = 'カレンダー';
-        calendar.updateSize();
-    });
+    document.getElementById('show-list-btn').addEventListener('click', () => switchView('list'));
+    document.getElementById('show-calendar-btn').addEventListener('click', () => switchView('calendar'));
     
-    document.getElementById('undo-btn').addEventListener('click', async () => {
-        if (undoStack.length === 0) return;
-        redoStack.push(JSON.parse(JSON.stringify({ tasks, labels })));
-        const prevState = undoStack.pop();
-        tasks = prevState.tasks; labels = prevState.labels;
-        saveDataAndRender();
-    });
-    document.getElementById('redo-btn').addEventListener('click', async () => {
-        if (redoStack.length === 0) return;
-        undoStack.push(JSON.parse(JSON.stringify({ tasks, labels })));
-        const nextState = redoStack.pop();
-        tasks = nextState.tasks; labels = nextState.labels;
-        saveDataAndRender();
-    });
+    document.getElementById('undo-btn').addEventListener('click', handleUndo);
+    document.getElementById('redo-btn').addEventListener('click', handleRedo);
 
-    document.getElementById('gemini-trigger-btn').addEventListener('click', async () => {
-        const geminiPrompt = document.getElementById('gemini-prompt');
-        const promptText = geminiPrompt.value.trim();
-        if (!promptText || !GEMINI_API_KEY) { alert("プロンプトを入力してください。"); return; }
-        const geminiBtn = document.getElementById('gemini-trigger-btn');
-        geminiBtn.disabled = true;
-        geminiBtn.querySelector('.default-text').style.display = 'none';
-        geminiBtn.querySelector('.loading-indicator').style.display = 'flex';
-        try {
-            const fullPrompt = `あなたはタスク管理アシスタントです。以下の文章からタスクを抽出し、JSON形式の配列で出力してください。各タスクオブジェクトには "text", "startDate", "endDate" のキーを含めてください。endDateが指定されていない、または1日のタスクの場合は、startDateと同じ日付にしてください。日付は必ず "YYYY-MM-DD" 形式で出力してください。「来週」「明日」などの相対的な日付は、今日の日付（${new Date().toISOString().split('T')[0]}）を基準に計算してください。出力は \`\`\`json ... \`\`\` の形式で囲んでください。\n\n---\n\n${promptText}`;
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] })
-            });
-            if (!response.ok) throw new Error(`Gemini APIエラー: ${response.status} ${await response.text()}`);
-            const data = await response.json();
-            let jsonString = data.candidates[0].content.parts[0].text;
-            const jsonMatch = jsonString.match(/```json([\s\S]*?)```/);
-            jsonString = jsonMatch ? jsonMatch[1].trim() : jsonString.substring(jsonString.indexOf('[') + 1, jsonString.lastIndexOf(']'));
-            const newTasks = JSON.parse(jsonString);
+    document.getElementById('gemini-trigger-btn').addEventListener('click', handleAiInteraction);
+    
+    window.addEventListener('resize', () => {
+        if (calendar) {
+            calendar.changeView(window.innerWidth < 768 ? 'listWeek' : 'dayGridMonth');
+            calendar.updateSize();
+        }
+    });
+}
+
+function bindAccordionEvents() {
+    document.querySelectorAll('.accordion-toggle').forEach(btn => {
+        // イベントリスナーが重複しないように、一度削除してから再設定する
+        const newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+        newBtn.addEventListener('click', function () { 
+            this.classList.toggle('active');
+            const content = this.nextElementSibling;
+            if (content.style.display === 'flex') {
+                content.style.display = 'none';
+            } else {
+                content.style.display = 'flex';
+            }
+        });
+    });
+}
+
+function switchView(view) {
+    const listView = document.getElementById('list-view');
+    const calendarView = document.getElementById('calendar-view');
+    const listBtn = document.getElementById('show-list-btn');
+    const calendarBtn = document.getElementById('show-calendar-btn');
+    const viewTitle = document.getElementById('view-title');
+
+    if (view === 'list') {
+        listView.style.display = 'block';
+        calendarView.style.display = 'none';
+        listBtn.classList.add('active');
+        calendarBtn.classList.remove('active');
+        viewTitle.textContent = 'タスクリスト';
+    } else {
+        listView.style.display = 'none';
+        calendarView.style.display = 'flex';
+        listBtn.classList.remove('active');
+        calendarBtn.classList.add('active');
+        viewTitle.textContent = 'カレンダー';
+        calendar.updateSize();
+    }
+}
+
+async function handleEventDrop({ event, revert }) {
+    const taskId = event.id;
+    const task = tasks.find(t => t.id.toString() === taskId.toString());
+
+    if (task) {
+        pushToUndoStack();
+        const newStartDate = event.start.toISOString().split('T')[0];
+        // FullCalendarのall-dayイベントのendはexclusiveなので、1日引く
+        const newEndDate = event.end ? new Date(event.end.getTime() - 86400000).toISOString().split('T')[0] : newStartDate;
+        
+        task.startDate = newStartDate;
+        task.endDate = newEndDate;
+        
+        await saveDataAndRender();
+    } else {
+        revert();
+    }
+}
+
+// ===============================================
+// Undo/Redo 機能
+// ===============================================
+function updateUndoRedoButtons() {
+    document.getElementById('undo-btn').disabled = undoStack.length === 0;
+    document.getElementById('redo-btn').disabled = redoStack.length === 0;
+}
+
+function pushToUndoStack() {
+    undoStack.push(JSON.parse(JSON.stringify({ tasks, labels })));
+    redoStack = []; // Redoスタックはクリア
+    updateUndoRedoButtons();
+}
+
+async function handleUndo() {
+    if (undoStack.length === 0) return;
+    redoStack.push(JSON.parse(JSON.stringify({ tasks, labels })));
+    const prevState = undoStack.pop();
+    tasks = prevState.tasks; 
+    labels = prevState.labels;
+    await saveDataAndRender();
+}
+
+async function handleRedo() {
+    if (redoStack.length === 0) return;
+    undoStack.push(JSON.parse(JSON.stringify({ tasks, labels })));
+    const nextState = redoStack.pop();
+    tasks = nextState.tasks; 
+    labels = nextState.labels;
+    await saveDataAndRender();
+}
+
+// ===============================================
+// AIアシスタント機能
+// ===============================================
+function levenshteinDistance(a, b) {
+    if (a.length === 0) return b.length;
+    if (b.length === 0) return a.length;
+    const matrix = Array(a.length + 1).fill(null).map(() => Array(b.length + 1).fill(null));
+    for (let i = 0; i <= a.length; i++) matrix[i][0] = i;
+    for (let j = 0; j <= b.length; j++) matrix[0][j] = j;
+    for (let i = 1; i <= a.length; i++) {
+        for (let j = 1; j <= b.length; j++) {
+            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+            matrix[i][j] = Math.min(matrix[i - 1][j] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j - 1] + cost);
+        }
+    }
+    return matrix[a.length][b.length];
+}
+
+function findClosestMatch(query, items, key = 'text') {
+    if (!query || !items || items.length === 0) return null;
+    let bestMatch = null;
+    let minDistance = Infinity;
+    items.forEach(item => {
+        const distance = levenshteinDistance(query.toLowerCase(), item[key].toLowerCase());
+        if (distance < minDistance) {
+            minDistance = distance;
+            bestMatch = item;
+        }
+    });
+    const threshold = Math.max(5, query.length / 2);
+    return minDistance <= threshold ? bestMatch : null;
+}
+
+async function handleAiInteraction() {
+    const geminiPrompt = document.getElementById('gemini-prompt');
+    const promptText = geminiPrompt.value.trim();
+    if (!promptText || !GEMINI_API_KEY) {
+        alert("プロンプトを入力してください。");
+        return;
+    }
+
+    const geminiBtn = document.getElementById('gemini-trigger-btn');
+    geminiBtn.disabled = true;
+    geminiBtn.querySelector('.default-text').style.display = 'none';
+    geminiBtn.querySelector('.loading-indicator').style.display = 'flex';
+
+    try {
+        const fullPrompt = buildAiPrompt(promptText);
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] })
+        });
+
+        if (!response.ok) throw new Error(`Gemini APIエラー: ${response.status} ${await response.text()}`);
+        
+        const data = await response.json();
+        if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+             throw new Error('無効なAPIレスポンスです。');
+        }
+        
+        let jsonString = data.candidates[0].content.parts[0].text;
+        // --- 修正版: コードブロックのパース処理 ---
+        let actions = [];
+        // ```json ... ``` もしくは ``` ... ``` のどちらにも対応
+        let jsonMatch = jsonString.match(/```json\s*([\s\S]*?)```/i);
+        if (!jsonMatch) {
+            jsonMatch = jsonString.match(/```\s*([\s\S]*?)```/i);
+        }
+        if (jsonMatch) {
+            try {
+                actions = JSON.parse(jsonMatch[1].trim());
+            } catch (e) {
+                actions = [];
+            }
+        } else {
+            try {
+                actions = JSON.parse(jsonString);
+            } catch (e) {
+                actions = [];
+            }
+        }
+        // ...以降は actions を使う
+        if (actions.length > 0) {
             pushToUndoStack();
-            newTasks.forEach(task => tasks.push(normalizeTask(task)));
-            saveDataAndRender();
+            processAiActions(actions);
+            await saveDataAndRender();
             geminiPrompt.value = '';
-        } catch (error) {
-            alert("タスクの自動生成に失敗しました。"); console.error(error);
-        } finally {
-            geminiBtn.disabled = false;
-            geminiBtn.querySelector('.default-text').style.display = 'inline';
-            geminiBtn.querySelector('.loading-indicator').style.display = 'none';
+        } else {
+            alert("AIは実行可能なアクションを見つけられませんでした。");
+        }
+
+    } catch (error) {
+        alert("AIアシスタントの処理中にエラーが発生しました。");
+        console.error(error);
+    } finally {
+        geminiBtn.disabled = false;
+        geminiBtn.querySelector('.default-text').style.display = 'inline';
+        geminiBtn.querySelector('.loading-indicator').style.display = 'none';
+    }
+}
+
+function buildAiPrompt(userInput) {
+    const today = new Date().toISOString().split('T')[0];
+    const tasksContext = JSON.stringify(tasks.map(t => ({ id: t.id, text: t.text, completed: t.completed, parentId: t.parentId })), null, 2);
+    const labelsContext = JSON.stringify(labels.map(l => ({ id: l.id, name: l.name, color: l.color, priority: l.priority })), null, 2);
+
+    return `あなたは高機能なタスク管理アシスタント「PLINY」です。ユーザーの自然言語による指示を解釈し、一連の操作コマンドをJSON配列として出力してください。
+
+# 現在の状態
+- 今日: ${today}
+- タスクリスト:
+${tasksContext}
+- ラベルリスト:
+${labelsContext}
+
+# あなたが実行できる操作 (action)
+1.  **addTask**: 新しいタスクを追加する。
+    - **text**: タスクの内容 (必須)
+    - **startDate**: 開始日 (YYYY-MM-DD形式)。指定がなければ今日の日付を推測する。
+    - **endDate**: 終了日 (YYYY-MM-DD形式)。指定がなければstartDateと同じ。
+    - **labelName**: 既存のラベル名。一致するラベルをタスクに割り当てる。
+    - **parentTaskText**: 親タスクのテキスト。指定された場合、そのタスクの子タスクとして作成する。
+2.  **updateTask**: 既存のタスクを更新する。
+    - **taskText**: 更新対象のタスクのテキスト (必須)。部分一致や曖昧な表現でもOK。
+    - **newText**: 新しいタスクのテキスト。
+    - **newStartDate**: 新しい開始日。
+    - **newEndDate**: 新しい終了日。
+    - **completed**: タスクを完了にするか (true/false)。
+    - **addLabelName**: タスクに追加する既存のラベル名。
+    - **removeLabelName**: タスクから削除する既存のラベル名。
+3.  **deleteTask**: 既存のタスクを削除する。
+    - **taskText**: 削除対象のタスクのテキスト (必須)。
+4.  **addLabel**: 新しいラベルを作成する。
+    - **name**: ラベル名 (必須)。
+    - **color**: 色 (例: 'red', '#ff0000')。指定がなければ'transparent'。
+    - **priority**: 優先度 (1:高, 2:中, 3:低)。指定がなければ既存の最大優先度+1。
+5.  **updateLabel**: 既存のラベルを更新する。
+    - **labelName**: 更新対象のラベル名 (必須)。
+    - **newName**: 新しいラベル名。
+    - **newColor**: 新しい色。
+    - **newPriority**: 新しい優先度。
+6.  **deleteLabel**: 既存のラベルを削除する。
+    - **labelName**: 削除対象のラベル名 (必須)。
+
+# 指示
+以下のユーザーの指示を解釈し、上記で定義された形式のJSON配列を出力してください。
+- 日付の解釈: 「明日」「来週の月曜日」などの相対的な表現は、今日(${today})を基準に解釈してください。
+- タスク/ラベルの特定: ユーザーの指定が曖昧な場合は、現在のリストから最も類似しているものを推測してください。
+- 応答形式: 必ず \`\`\`json ... \`\`\` のコードブロックで囲んでください。
+
+---
+ユーザーの指示: "${userInput}"
+---
+`;
+}
+
+function processAiActions(actions) {
+    actions.forEach(action => {
+        try {
+            switch (action.action) {
+                case 'addTask':
+                    const parentTask = action.parentTaskText ? findClosestMatch(action.parentTaskText, tasks, 'text') : null;
+                    const label = action.labelName ? findClosestMatch(action.labelName, labels, 'name') : null;
+                    const newTask = normalizeTask({
+                        text: action.text,
+                        startDate: action.startDate,
+                        endDate: action.endDate,
+                        parentId: parentTask ? parentTask.id : null,
+                        labelIds: label ? [label.id] : []
+                    });
+                    tasks.push(newTask);
+                    if (parentTask) parentTask.isCollapsed = false;
+                    break;
+
+                case 'updateTask':
+                    const taskToUpdate = findClosestMatch(action.taskText, tasks, 'text');
+                    if (taskToUpdate) {
+                        if (action.newText) taskToUpdate.text = action.newText;
+                        if (action.newStartDate) taskToUpdate.startDate = action.newStartDate;
+                        if (action.newEndDate) taskToUpdate.endDate = action.newEndDate;
+                        if (action.completed !== undefined) taskToUpdate.completed = action.completed;
+                        if (action.addLabelName) {
+                            const labelToAdd = findClosestMatch(action.addLabelName, labels, 'name');
+                            if (labelToAdd && !taskToUpdate.labelIds.includes(labelToAdd.id)) {
+                                taskToUpdate.labelIds.push(labelToAdd.id);
+                            }
+                        }
+                        if (action.removeLabelName) {
+                            const labelToRemove = findClosestMatch(action.removeLabelName, labels, 'name');
+                            if (labelToRemove) {
+                                taskToUpdate.labelIds = taskToUpdate.labelIds.filter(id => id !== labelToRemove.id);
+                            }
+                        }
+                    }
+                    break;
+
+                case 'deleteTask':
+                    const taskToDelete = findClosestMatch(action.taskText, tasks, 'text');
+                    if (taskToDelete) {
+                         const getDescendants = id => tasks.filter(t => t.parentId === id).flatMap(c => [c.id, ...getDescendants(c.id)]);
+                         const descendantIds = getDescendants(taskToDelete.id);
+                         tasks = tasks.filter(t => ![taskToDelete.id, ...descendantIds].includes(t.id));
+                    }
+                    break;
+
+                case 'addLabel':
+                    const newLabel = {
+                        id: `label-${Date.now()}`,
+                        name: action.name,
+                        color: action.color || 'transparent',
+                        priority: action.priority || (labels.length > 0 ? Math.max(...labels.map(l => l.priority || 0)) : 0) + 1
+                    };
+                    labels.push(newLabel);
+                    break;
+
+                case 'updateLabel':
+                    const labelToUpdate = findClosestMatch(action.labelName, labels, 'name');
+                    if (labelToUpdate) {
+                        if (action.newName) labelToUpdate.name = action.newName;
+                        if (action.newColor) labelToUpdate.color = action.newColor;
+                        if (action.newPriority) labelToUpdate.priority = action.newPriority;
+                    }
+                    break;
+
+                case 'deleteLabel':
+                    const labelToDelete = findClosestMatch(action.labelName, labels, 'name');
+                    if (labelToDelete) {
+                        labels = labels.filter(l => l.id !== labelToDelete.id);
+                        tasks.forEach(t => {
+                            t.labelIds = t.labelIds.filter(id => id !== labelToDelete.id);
+                        });
+                    }
+                    break;
+            }
+        } catch (e) {
+            console.error(`アクションの処理に失敗しました: ${action.action}`, e);
         }
     });
 }
