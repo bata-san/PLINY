@@ -1,527 +1,526 @@
+/* --- PLINY REFRESHED: iOS Inspired UI/UX v2 --- */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
-    --bg-color: #f9f9f9;
-    --pane-bg: #fff;
-    --text-color-primary: #1c1c1e;
-    --text-color-secondary: #8e8e93;
-    --accent-color-blue: #007aff;
-    --accent-color-red: #ff3b30;
-    --accent-color-green: #34c759;
-    --border-color: #e5e5ea;
-    --input-bg: #f2f2f7;
-    --indent-width: 24px;
-    --border-radius-sm: 5px;   /* 角丸を小さく */
-    --border-radius-md: 10px;  /* 角丸を小さく */
-    --shadow-sm: 0 1px 4px rgba(60,60,67,0.03);
-    --shadow-md: 0 4px 16px rgba(60,60,67,0.06);
-    --transition-fast: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+    --primary: #007aff;
+    --primary-light: #e6f2ff;
+    --danger: #ff3b30;
+    --success: #34c759;
+    --warning: #ff9500;
+    
+    --bg-app: #f2f2f7;
+    --bg-pane: #ffffff;
+    --bg-hover: #f1f1f1;
+
+    --text-primary: #000000;
+    --text-secondary: #8a8a8e;
+    --text-placeholder: #c7c7cc;
+    --text-on-primary: #ffffff;
+    
+    --border-color: rgba(60, 60, 67, 0.29);
+    
+    --radius-md: 10px;
+    --radius-lg: 12px;
+
+    --shadow-focus: 0 0 0 3px rgba(0, 122, 255, 0.2);
+
+    --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    --font-main: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    
+    --indent-width: 32px;
 }
 
-body { font-family: 'Inter', sans-serif; background-color: var(--bg-color); color: var(--text-color-primary); margin: 0; line-height: 1.5; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
-#app-container { display: flex; height: 100vh; }
-#left-pane { width: 380px; flex-shrink: 0; background-color: var(--pane-bg); border-right: 1px solid var(--border-color); padding: 30px; display: flex; flex-direction: column; gap: 30px; overflow-y: auto; }
-header { display: flex; justify-content: space-between; align-items: center; }
-header h1 { font-size: 2em; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
-header h1 sub { font-size: 0.7em; color: var(--text-color-secondary); }
-#global-actions { display: flex; gap: 8px; }
-#global-actions button { width: 36px; height: 36px; padding: 0; display: flex; align-items: center; justify-content: center; background-color: var(--input-bg); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); box-shadow: var(--shadow-sm); transition: var(--transition-fast); }
-#global-actions button:hover:not(:disabled) { background-color: #e5e5ea; transform: none; }
-#global-actions button:disabled { opacity: 0.4; cursor: not-allowed; }
-#undo-btn, #redo-btn {
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23495057' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpath d='M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3'/%3e%3c/svg%3e");
-    background-size: 20px;
-    background-position: center;
-    background-repeat: no-repeat;
-    /* 明るさを上げる */
-    filter: grayscale(0.1) brightness(1.25);
-    background-color: #fff;
-}
-h2 { font-size: 1.15em; font-weight: 600; margin: 0 0 10px 0; padding-bottom: 5px; border-bottom: 1px solid var(--border-color); color: var(--text-color-primary); }
-#task-form { display: flex; flex-direction: column; gap: 15px; }
-input[type="text"], select, textarea { width: 100%; padding: 10px 12px; border-radius: var(--border-radius-md); border: 1px solid var(--border-color); font-size: 1em; box-sizing: border-box; background-color: var(--input-bg); font-family: 'Inter', sans-serif; transition: var(--transition-fast); }
-input[type="text"]:focus, select:focus, textarea:focus { border-color: var(--accent-color-blue); outline: none; box-shadow: 0 0 0 2px rgba(0,122,255,0.15); }
-select { appearance: none; background-color: var(--input-bg); background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 0.75rem center; background-size: 16px 12px; }
-button { border-radius: var(--border-radius-md); border: none; font-size: 1em; font-weight: 600; cursor: pointer; box-sizing: border-box; width: 100%; transition: var(--transition-fast); background: var(--accent-color-blue); color: #fff; box-shadow: var(--shadow-sm); }
-button:active:not(:disabled) { transform: scale(0.99); }
-#task-form button { background-color: var(--accent-color-blue); color: #fff; padding: 12px; border-radius: var(--border-radius-md); box-shadow: var(--shadow-sm); }
-#task-form button:hover { background-color: #0051a8; box-shadow: var(--shadow-md); transform: none; }
-.accordion { border: 1px solid var(--border-color); border-radius: var(--border-radius-md); background-color: #fff; box-shadow: var(--shadow-sm); }
-.accordion-toggle { background-color: transparent; color: var(--text-color-primary); padding: 16px 18px; font-size: 1em; font-weight: 600; width: 100%; display: flex; justify-content: space-between; align-items: center; border: none; border-radius: var(--border-radius-md); transition: background 0.15s; }
-.accordion-toggle:hover { background-color: var(--input-bg); }
-.accordion-content { padding: 18px; background-color: transparent; border-top: 1px solid var(--border-color); display: none; flex-direction: column; gap: 15px; min-height: 0; }
-.accordion-toggle.active + .accordion-content { display: flex; }
-.accordion-icon { border: solid var(--text-color-secondary); border-width: 0 2px 2px 0; display: inline-block; padding: 3px; transform: rotate(45deg); transition: transform 0.2s; }
-.accordion-toggle.active .accordion-icon { transform: rotate(-135deg); }
-#label-editor-list { display: flex; flex-direction: column; gap: 8px; }
-.add-new-label-trigger { background-color: #fff; color: var(--text-color-secondary); text-align: center; cursor: pointer; padding: 12px; border-radius: var(--border-radius-md); font-weight: 500; border: 1px dashed var(--border-color); transition: background 0.15s; }
-.add-new-label-trigger:hover { background-color: var(--input-bg); }
-.label-item { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: var(--border-radius-md); background-color: var(--input-bg); min-height: 44px; }
-#right-pane { flex-grow: 1; padding: 36px; overflow-y: auto; display: flex; flex-direction: column; background: var(--pane-bg); }
-#view-switcher { display: flex; justify-content: flex-end; margin-bottom: 20px; }
-#task-list-container { display: flex; flex-direction: column; gap: 8px; }
-.task-node { display: flex; align-items: center; min-height: 52px; position: relative; }
-/* ▼▼▼ タスク親子関係の視覚ガイド ▼▼▼ */
-.task-node {
-    position: relative;
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+    height: 100%; margin: 0; padding: 0;
+    background: var(--bg-app);
+    color: var(--text-primary);
+    font-family: var(--font-main);
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
-/* インデントごとにガイド線を描画 */
-.task-node[data-level="1"]::before,
-.task-node[data-level="2"]::before,
-.task-node[data-level="3"]::before,
-.task-node[data-level="4"]::before,
-.task-node[data-level="5"]::before {
-    content: "";
+#app-container { display: flex; height: 100vh; position: relative; }
+
+#loading-overlay {
     position: absolute;
     top: 0;
-    left: calc(var(--indent-width) * (var(--level) - 1) + 10px);
-    width: 2px;
-    height: 100%;
-    background: var(--border-color);
-    z-index: 0;
-    border-radius: 1px;
-    opacity: 0.7;
-    pointer-events: none;
-}
-
-/* 階層ごとに背景色を薄く変化 */
-.task-node[data-level="1"] .task-card { background: var(--pane-bg); }
-.task-node[data-level="2"] .task-card { background: #f7faff; }
-.task-node[data-level="3"] .task-card { background: #f3f6fa; }
-.task-node[data-level="4"] .task-card { background: #f8f8fb; }
-.task-node[data-level="5"] .task-card { background: #fafbfc; }
-
-/* 階層が深いほど左のガイド線が増える */
-.task-node[data-level="2"]::before { left: calc(var(--indent-width) * 0 + 10px); }
-.task-node[data-level="3"]::before { left: calc(var(--indent-width) * 1 + 10px); }
-.task-node[data-level="4"]::before { left: calc(var(--indent-width) * 2 + 10px); }
-.task-node[data-level="5"]::before { left: calc(var(--indent-width) * 3 + 10px); }
-.task-toggle { flex-shrink: 0; width: var(--indent-width); height: 52px; display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0.6; }
-.task-toggle:hover { opacity: 1; }
-.task-toggle.hidden { visibility: hidden; }
-.task-toggle svg { width: 18px; height: 18px; transition: transform 0.2s; }
-
-/* ▼▼▼ 修正箇所 ▼▼▼ */
-.task-toggle.collapsed svg { transform: rotate(0deg); } /* Right arrow */
-.task-toggle:not(.collapsed) svg { transform: rotate(90deg); } /* Down arrow */
-/* ▲▲▲ 修正箇所 ▲▲▲ */
-.task-card {
-    flex-grow: 1;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    background: var(--pane-bg);
-    border: 1px solid var(--border-color);
-    border-left: 5px solid var(--accent-color-blue);
-    border-radius: var(--border-radius-md);
-    padding: 12px 18px;
-    box-shadow: var(--shadow-sm);
-    transition: var(--transition-fast);
-}
-.task-card:hover {
-    box-shadow: var(--shadow-md);
-    transform: none;
-}
-.task-card.completed {
-    border-left-color: #d1d1d6;
-    background-color: #f2f2f7;
-}
-.task-card.completed .task-text {
-    text-decoration: line-through;
-    color: var(--text-color-secondary);
-}
-.task-content {
-    flex-grow: 1;
-    display: flex;
-    align-items: center;
-}
-.task-text {
-    font-size: 1em;
-    font-weight: 500;
-    margin-right: auto;
-}
-.task-labels {
-    display: flex;
-    gap: 6px;
-    margin-right: 10px;
-}
-.task-label-badge {
-    font-size: 0.78em;
-    padding: 3px 10px;
-    border-radius: 14px;
-    color: #fff;
-    background: var(--accent-color-blue);
-    font-weight: 500;
-}
-.task-due-date {
-    font-size: 0.9em;
-    color: var(--text-color-secondary);
-    margin-right: 10px;
-    white-space: nowrap;
-}
-.task-actions {
-    display: flex;
-    gap: 4px;
-}
-.task-actions button {
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    border-radius: var(--border-radius-sm);
-    background-color: transparent;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    transition: background 0.15s;
-}
-.task-actions button:hover {
-    background-color: var(--input-bg);
-}
-.task-actions svg {
-    width: 16px;
-    height: 16px;
-    color: var(--text-color-secondary);
-}
-.complete-btn svg {
-    color: var(--accent-color-green);
-}
-.task-card.dragging {
-    opacity: 0.4;
-    background: #e5e5ea;
-    box-shadow: none;
-}
-.task-card.drag-over {
-    outline: 2px solid var(--accent-color-blue);
-    background-color: rgba(0,122,255,0.07);
-}
-.label-item-color-swatch {
-    width: 28px;
-    height: 28px;
-    border-radius: var(--border-radius-sm);
-    flex-shrink: 0;
-    cursor: pointer;
-    border: 1px solid rgba(0,0,0,0.07);
-    position: relative;
-}
-.color-palette-dropdown {
-    position: absolute;
-    top: 100%;
     left: 0;
-    margin-top: 5px;
-    background: #fff;
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius-md);
-    padding: 10px;
-    display: none;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 10px;
-    z-index: 10;
-    box-shadow: var(--shadow-md);
-}
-.color-palette-dropdown.active {
-    display: grid;
-}
-.color-box {
-    width: 28px;
-    height: 28px;
-    border-radius: var(--border-radius-sm);
-    cursor: pointer;
-}
-.label-item-content {
-    flex-grow: 1;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    overflow: hidden;
-}
-.label-name-display {
-    font-weight: 500;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    margin-right: 8px;
-}
-.label-prio-display {
-    font-size: 0.85em;
-    color: var(--text-color-secondary);
-    flex-shrink: 0;
-}
-.label-item-editor {
-    display: flex;
-    flex-grow: 1;
-    gap: 8px;
-    align-items: center;
-}
-.label-name-input, .label-prio-select {
-    padding: 7px 10px;
-    font-size: 0.95em;
-    height: 36px;
-    border-radius: var(--border-radius-sm);
-    background: var(--input-bg);
-    border: 1px solid var(--border-color);
-}
-.label-item-actions {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-.label-item-actions button {
-    width: 32px;
-    height: 32px;
-    border-radius: var(--border-radius-sm);
-}
-.label-item-actions button:hover {
-    background-color: rgba(0,0,0,0.04);
-}
-.label-item-actions svg {
-    width: 16px;
-    height: 16px;
-}
-.label-item .label-item-editor, .label-item .action-save-cancel {
-    display: none;
-}
-.label-item .label-item-display {
-    display: flex;
-}
-.label-item.editing .label-item-display, .label-item.editing .action-edit-delete {
-    display: none;
-}
-.label-item.editing .label-item-editor, .label-item.editing .action-save-cancel {
-    display: flex;
-}
-#view-switcher button {
-    padding: 10px 20px;
-    border: 1px solid var(--border-color);
-    background: var(--pane-bg);
-    color: var(--text-color-secondary);
-    cursor: pointer;
-    font-weight: 500;
-    font-size: 1em;
-    border-radius: 0;
-    transition: background 0.15s, color 0.15s;
-}
-#view-switcher button:first-child {
-    border-radius: var(--border-radius-md) 0 0 var(--border-radius-md);
-}
-#view-switcher button:last-child {
-    border-radius: 0 var(--border-radius-md) var(--border-radius-md) 0;
-    border-left: none;
-}
-#view-switcher button.active {
-    background: var(--accent-color-blue);
-    color: #fff;
-    border-color: var(--accent-color-blue);
-}
-#calendar-view {
-    background-color: var(--pane-bg);
-    border-radius: var(--border-radius-md);
-    padding: 24px;
-    border: 1px solid var(--border-color);
-    flex-grow: 1;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255, 255, 255, 0.8);
     display: flex;
     flex-direction: column;
-    box-shadow: var(--shadow-sm);
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    gap: 10px;
+    font-size: 1.2em;
+    color: var(--text-secondary);
+}
+
+#loading-overlay .spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(0, 122, 255, 0.3);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+#left-pane {
+    width: 380px;
+    background: transparent;
+    display: flex; flex-direction: column;
+    gap: 30px; padding: 24px;
+    overflow-y: auto; flex-shrink: 0;
+}
+
+header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 8px;
+}
+header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02em; }
+#global-actions { display: flex; gap: 12px; }
+#global-actions button {
+    width: 36px; height: 36px;
+    background: transparent; color: var(--primary);
+    border: none; border-radius: var(--radius-md);
+    display: flex; align-items: center; justify-content: center;
+    transition: var(--transition); cursor: pointer; padding: 0;
+}
+#global-actions button:hover:not(:disabled) { background: var(--primary-light); }
+#global-actions button:disabled { color: var(--text-placeholder); cursor: not-allowed; }
+#global-actions button svg { width: 22px; height: 22px; }
+
+.control-group {
+    background: var(--bg-pane);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 1px 1px rgba(0,0,0,0.02);
+}
+
+#task-form { padding: 12px 16px; display: flex; flex-direction: column; }
+#task-form input[type="text"] { border: none; padding: 10px 0; border-radius: 0; }
+#task-form input[type="text"]:focus { box-shadow: none; }
+.form-divider { height: 1px; background: var(--border-color); margin: 8px 0; }
+#task-form button { margin-top: 12px; padding: 10px; }
+
+#add-task-label-selector {
+    padding: 8px 0;
+}
+
+#add-task-label-selector .label-checkbox-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    margin: 4px;
+    border-radius: var(--radius-md);
+    background-color: var(--bg-app);
+    cursor: pointer;
+}
+
+#add-task-label-selector .label-checkbox-item input {
+    display: none; /* Hide actual checkbox */
+}
+
+#add-task-label-selector .label-checkbox-item .label-color-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+#add-task-label-selector .label-checkbox-item.selected {
+    background-color: var(--primary-light);
+    color: var(--primary);
+}
+
+.accordion-toggle {
+    background: transparent; color: var(--text-primary);
+    padding: 16px; font-size: 1.05em; font-weight: 500;
+    width: 100%; display: flex; justify-content: space-between; align-items: center;
+    border-radius: var(--radius-lg);
+}
+.accordion-toggle:hover { background: var(--bg-hover); }
+.accordion-content {
+    padding: 16px; display: none; flex-direction: column;
+    gap: 14px; border-top: 1px solid var(--border-color);
+}
+.accordion-toggle.active + .accordion-content { display: flex; }
+.accordion-icon {
+    border: solid var(--text-secondary); border-width: 0 2px 2px 0;
+    display: inline-block; padding: 3px; transform: rotate(45deg); transition: transform 0.2s;
+}
+.accordion-toggle.active .accordion-icon { transform: rotate(-135deg); }
+#gemini-trigger-btn { padding: 10px; }
+
+#right-pane {
+    flex-grow: 1; padding: 24px;
+    display: flex; flex-direction: column; gap: 16px; min-width: 0;
+}
+#right-pane-header { display: flex; justify-content: space-between; align-items: flex-end; padding: 0 8px; }
+#view-title { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02em; }
+#view-switcher { padding: 4px; background-color: #dddde2; border-radius: 8px; display: flex; }
+#view-switcher button {
+    padding: 4px 12px; font-size: 0.85em; font-weight: 600;
+    border-radius: 6px; background: transparent;
+    color: var(--text-primary); border: none;
+    transition: var(--transition);
+}
+#view-switcher button.active {
+    background: var(--bg-pane); color: var(--text-primary);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
+
+#list-view { background: transparent; padding: 0; border: none; }
+#task-list-container { background: var(--bg-pane); border-radius: var(--radius-lg); overflow: hidden; }
+#calendar-view { 
+    background: var(--bg-pane); 
+    border-radius: var(--radius-lg); 
+    padding: 16px; 
+    display: none; 
+    flex-direction: column; /* Use flexbox for layout */
+    flex-grow: 1;
 }
 
 #calendar-container {
+    flex-grow: 1; /* Allow container to grow */
+    min-height: 0; /* Prevent overflow issues in flexbox */
+}
+
+/* iOS-style Task List v2 */
+.task-node {
+    position: relative;
+    --level-indent: calc((var(--level, 1) - 1) * var(--indent-width));
+}
+.task-node::after {
+    content: ''; position: absolute; bottom: 0;
+    left: calc(var(--level-indent) + 50px);
+    right: 0; height: 1px; background: var(--border-color);
+}
+.task-node:last-child::after { display: none; }
+.task-card {
+    display: flex; align-items: center; gap: 8px;
+    background: transparent; padding: 12px 16px;
+    transition: background-color 0.2s;
+}
+.task-card:hover { background: var(--bg-hover); }
+.task-card.completed { opacity: 0.5; }
+.task-card.completed .task-text { text-decoration: line-through; }
+.task-card-main {
+    flex-grow: 1; min-width: 0;
+    padding-left: calc(var(--level-indent) + 20px);
+    display: flex; align-items: center; gap: 12px;
+}
+.task-card-main::before {
+    content: ''; width: 8px; height: 8px; border-radius: 50%;
+    background-color: var(--label-color, transparent);
+    flex-shrink: 0; transition: background-color 0.2s;
+}
+.task-card.has-label-color .task-card-main::before { background-color: var(--label-color); }
+.task-toggle {
+    position: absolute; top: 50%;
+    left: calc(var(--level-indent) - 12px);
+    transform: translateY(-50%);
+    width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-secondary); cursor: pointer; border-radius: 50%;
+}
+.task-toggle:hover { color: var(--primary); }
+.task-toggle.hidden { display: none; }
+.task-toggle svg { width: 14px; height: 14px; transition: transform 0.2s ease-out; }
+.task-toggle:not(.collapsed) svg { transform: rotate(90deg); }
+
+.task-content-wrapper { min-width: 0; }
+.task-text { font-weight: 500; }
+.task-meta { display: flex; align-items: center; gap: 10px; font-size: 0.85em; color: var(--text-secondary); margin-top: 3px; }
+.task-labels { display: flex; flex-wrap: wrap; gap: 6px; }
+.task-label-badge {
+    padding: 2px 8px; border-radius: 10px; font-size: 0.9em; font-weight: 500;
+    background-color: #e9e9eb; color: #505052;
+}
+.task-actions { display: flex; align-items: center; margin-left: auto; }
+.task-actions button {
+    width: 32px; height: 32px; padding: 0;
+    background: none; color: var(--text-secondary);
+    border-radius: 50%;
+}
+.task-actions button:hover { background: #e5e5e5; color: var(--text-primary); }
+.task-actions svg { width: 17px; height: 17px; }
+
+/* Calendar */
+#calendar-container .fc { border: none; font-family: var(--font-main); height: 100%; }
+
+@media (max-width: 900px) {
+    #app-container { flex-direction: column; }
+    #left-pane { width: 100%; height: auto; max-height: 50vh; border-right: none; border-bottom: 1px solid var(--border-color); }
+    #right-pane { padding: 16px; flex-grow: 1; }
+}
+
+.loading-indicator { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.spinner { width: 18px; height: 18px; border: 2px solid rgba(255, 255, 255, 0.3); border-top-color: #fff; border-radius: 50%; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* --- Label Editor & General UI Polish --- */
+#label-editor-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.label-editor-item {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    border-radius: var(--radius-md);
+    background-color: var(--bg-app);
+    position: relative;
+}
+
+.label-color-preview {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 2px solid var(--bg-pane);
+    box-shadow: 0 0 0 1px var(--border-color);
+    cursor: pointer;
+}
+
+.label-name-input {
     flex-grow: 1;
-}
-
-#calendar-container .fc {
     border: none;
-    height: 100%;
-    background: var(--pane-bg);
-    color: var(--text-color-primary);
-    font-family: 'Inter', sans-serif;
-    padding-bottom: 10px;
+    background: transparent;
+    padding: 4px 0;
+    font-size: 0.95em;
+    color: var(--text-primary);
+}
+.label-name-input:focus {
+    outline: none;
+    box-shadow: none;
 }
 
-#calendar-container .fc-header-toolbar,
-#calendar-container .fc-toolbar,
-#calendar-container .fc-toolbar-ltr {
-    background: var(--pane-bg);
-    border-radius: var(--border-radius-md);
-    padding: 18px 18px 10px 18px;
-    margin-bottom: 1.5em !important;
+.label-editor-controls {
     display: flex;
     align-items: center;
-    gap: 18px;
-    box-shadow: var(--shadow-sm);
+    gap: 4px;
 }
 
-#calendar-container .fc-toolbar-title {
-    font-size: 1.5em;
-    font-weight: 700;
-    color: var(--text-color-primary);
-    letter-spacing: -0.01em;
-    margin-right: 20px;
+.label-editor-controls button {
+    width: 28px;
+    height: 28px;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: var(--transition);
+}
+.label-editor-controls button:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+.label-editor-controls.delete-label-btn:hover {
+    color: var(--danger);
+}
+.label-editor-controls svg {
+    width: 16px;
+    height: 16px;
 }
 
-#calendar-container .fc-toolbar-chunk {
+.priority-control {
+    display: flex;
+    background-color: #e9e9eb;
+    border-radius: var(--radius-md);
+    padding: 2px;
+}
+
+.priority-control button {
+    padding: 4px 8px;
+    font-size: 0.8em;
+    font-weight: 500;
+    background-color: transparent;
+    color: var(--text-secondary);
+    border-radius: var(--radius-md);
+}
+
+.priority-control button.active {
+    background-color: #fff;
+    color: var(--text-primary);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+#label-add-container {
+    border-top: 1px solid var(--border-color);
+    padding-top: 16px;
+}
+
+#new-label-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+#new-label-form .form-row {
     display: flex;
     align-items: center;
     gap: 10px;
 }
 
-#calendar-container .fc-button-group {
-    display: flex;
-    gap: 6px;
-}
-
-#calendar-container .fc .fc-button,
-#calendar-container .fc .fc-button-primary {
-    min-width: 38px;
-    min-height: 36px;
-    font-size: 1em;
-    font-family: 'Inter', sans-serif;
-    font-weight: 500;
-    border-radius: var(--border-radius-md) !important;
-    margin: 0;
-    box-shadow: none !important;
-    outline: none !important;
-}
-
-#calendar-container .fc .fc-button:focus {
-    border-color: var(--accent-color-blue);
-    box-shadow: 0 0 0 2px rgba(0,122,255,0.12);
-}
-
-#calendar-container .fc .fc-button-primary:not(:disabled):hover {
-    filter: brightness(0.97);
-}
-
-#calendar-container .fc .fc-button.fc-button-active {
-    background: var(--accent-color-blue) !important;
-    color: #fff !important;
-    border-color: var(--accent-color-blue) !important;
-}
-
-#calendar-container .fc .fc-button:not(.fc-button-primary):not(.fc-button-active) {
-    background: var(--input-bg);
-    color: var(--text-color-primary);
+#new-label-name {
+    flex-grow: 1;
+    padding: 8px 12px;
     border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background-color: #fff;
+}
+#new-label-name:focus {
+    border-color: var(--primary);
+    box-shadow: var(--shadow-focus);
 }
 
-#calendar-container .fc .fc-button:not(:disabled):hover {
-    background: #e5e5ea;
-    color: var(--text-color-primary);
+#add-new-label-btn {
+    padding: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background-color: var(--primary);
+    color: white;
+    flex-shrink: 0;
 }
 
-/* ▼▼▼ 曜日ヘッダー・日付セルの視認性向上 ▼▼▼ */
-#calendar-container .fc-col-header-cell {
-    background: var(--input-bg);
-    font-weight: 600;
-    color: var(--text-color-primary);
-    border-radius: var(--border-radius-sm) var(--border-radius-sm) 0 0;
-    padding: 8px 0;
+#add-new-label-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* General Polish */
+input, textarea, select, button {
+    font-family: var(--font-main);
     font-size: 1em;
-    letter-spacing: 0.01em;
 }
 
-#calendar-container .fc-daygrid-day-number {
-    font-weight: 600; /* ← 太字に戻す */
-    color: var(--text-color-primary);
-    background: transparent;
-    padding: 2px 6px;
-    border-radius: var(--border-radius-sm);
-    transition: background 0.15s;
-    z-index: 1;
-    position: relative;
+input[type="text"], textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: #fff;
+    transition: var(--transition);
+}
+input[type="text"]:focus, textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: var(--shadow-focus);
 }
 
-#calendar-container .fc-day-today .fc-daygrid-day-number {
-    border-radius: var(--border-radius-sm);
-    padding: 2px 6px;
+button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 16px;
+    border-radius: var(--radius-md);
+    border: none;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition);
+    background-color: var(--primary);
+    color: var(--text-on-primary);
+}
+button:hover:not(:disabled) {
+    opacity: 0.85;
+}
+button:disabled {
+    background-color: #e0e0e0;
+    color: var(--text-secondary);
+    cursor: not-allowed;
 }
 
-/* ▼▼▼ イベントが多い場合の視認性向上 ▼▼▼ */
-#calendar-container .fc-daygrid-event {
-    margin-top: 2px;
-    margin-bottom: 2px;
-    padding: 4px 8px;
-    border-radius: var(--border-radius-sm);
-    font-size: 0.92em;
-    font-weight: 400; /* ← 通常の太さに */
-    background: var(--accent-color-blue);
-    color: #fff;
-    border: 1px solid rgba(0,0,0,0.03);
-    transition: background 0.15s, color 0.15s;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+/* --- Popovers & Palettes --- */
+.popover {
+    position: absolute;
+    background: var(--bg-pane);
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    border: 1px solid var(--border-color);
+    z-index: 1000;
+    display: none; /* Hidden by default */
+    padding: 8px;
 }
 
-#calendar-container .fc-daygrid-event .fc-event-title {
-    color: #fff;
-    font-weight: 400; /* ← 通常の太さに */
+.color-palette {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
 }
 
-#calendar-container .fc-daygrid-event:hover {
-    filter: brightness(0.95);
+.color-box {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: var(--transition);
+}
+.color-box:hover {
+    transform: scale(1.1);
+}
+.color-box.selected {
+    border-color: var(--primary);
 }
 
-#calendar-container .completed-event {
-    background-color: #f2f2f7 !important;
-    border-color: #e5e5ea !important;
-    color: var(--text-color-secondary) !important;
+.label-select-popover {
+    padding: 12px;
+    width: 280px;
 }
 
-#calendar-container .completed-event .fc-event-title {
-    text-decoration: line-through;
-    color: var(--text-color-secondary) !important;
+.label-select-popover h3 {
+    margin: 0 0 12px 0;
+    font-size: 1em;
+    font-weight: 600;
 }
 
-/* ▼▼▼ カレンダー全体の余白・レスポンシブ調整 ▼▼▼ */
-#calendar-container .fc-daygrid-day-frame {
-    border-radius: var(--border-radius-sm);
-    background: transparent;
-    transition: background 0.15s;
-    min-height: 70px;
-    padding: 2px 2px 2px 2px;
+.label-select-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
-#calendar-container .fc-day-today {
-    /* background-color: rgba(0,122,255,0.08); */
-    /* border-radius: var(--border-radius-sm); */
-    /* border: 1px solid var(--accent-color-blue); */
-    /* ← これらを削除またはコメントアウト */
+.label-select-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.label-select-item:hover {
+    background-color: var(--bg-hover);
 }
 
-#calendar-container .fc-day-today .fc-daygrid-day-number {
-    background: var(--accent-color-blue);
-    color: #fff;
-    border-radius: var(--border-radius-sm);
-    padding: 2px 8px;
-    /* 必要ならbox-shadowやborder追加も可 */
+.label-select-item input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary);
 }
 
-#calendar-container .fc-daygrid-day:hover .fc-daygrid-day-frame {
-    background: var(--input-bg);
+.label-select-item .label-color-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
 }
 
-/* ▼▼▼ モバイル時のカレンダーUI調整 ▼▼▼ */
-@media (max-width: 767px) {
-    #calendar-view {
-        padding: 10px;
-    }
-    #calendar-container .fc-header-toolbar,
-    #calendar-container .fc-toolbar,
-    #calendar-container .fc-toolbar-ltr {
-        padding: 10px 6px 6px 6px;
-        gap: 8px;
-        font-size: 0.98em;
-    }
-    #calendar-container .fc-toolbar-title {
-        font-size: 1.1em;
-        margin-right: 10px;
-    }
-    #calendar-container .fc-col-header-cell {
-        font-size: 0.95em;
-        padding: 6px 0;
-    }
-    #calendar-container .fc-daygrid-day-frame {
-        min-height: 48px;
-        padding: 1px 1px 1px 1px;
-    }
+.label-select-item .label-name {
+    flex-grow: 1;
 }

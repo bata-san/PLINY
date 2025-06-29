@@ -13,62 +13,87 @@
 <body>
 
     <div id="app-container">
+        <div id="loading-overlay" style="display: none;">
+            <div class="spinner"></div>
+            <span>読み込み中...</span>
+        </div>
         <!-- Left Pane: Controls -->
         <div id="left-pane">
             <header>
-                <h1>PLINY <sub>Prometheus</sub></h1>
+                <h1>PLINY</h1>
                 <div id="global-actions">
                     <button id="undo-btn" title="元に戻す (Ctrl+Z)" disabled></button>
                     <button id="redo-btn" title="やり直す (Ctrl+Y)" disabled></button>
                 </div>
             </header>
 
-            <form id="task-form">
-                <h2>新しいタスク</h2>
-                <input type="text" id="task-input" placeholder="タスクの内容を入力..." required>
-                <input type="text" id="task-due-date" placeholder="期間を選択 (開始日〜終了日)" required>
-                <button type="submit">登録する</button>
-            </form>
-
-            <div id="label-editor" class="accordion">
-                <button type="button" class="accordion-toggle">
-                    <span>ラベルを編集</span>
-                    <span class="accordion-icon"></span>
-                </button>
-                <div class="accordion-content">
-                    <div id="label-editor-list"></div>
-                    <div id="label-add-container"></div>
+            <div class="control-group">
+                <form id="task-form">
+                    <input type="text" id="task-input" placeholder="新しいタスクを追加..." required>
+                    <div class="form-divider"></div>
+                    <input type="text" id="task-due-date" placeholder="期間を選択" required>
+                    <div class="form-divider"></div>
+                    <div id="add-task-label-selector"></div>
+                    <button type="submit">タスクを登録する</button>
+                </form>
+            </div>
+            
+            <div class="control-group">
+                <div id="label-editor" class="accordion">
+                    <button type="button" class="accordion-toggle">
+                        <span>ラベルを編集</span>
+                        <span class="accordion-icon"></span>
+                    </button>
+                    <div class="accordion-content">
+                        <div id="label-editor-list">
+                            <!-- Dynamically filled by script.js -->
+                        </div>
+                        <div id="label-add-container">
+                            <!-- Dynamically filled by script.js -->
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div id="ai-generator" class="accordion">
-                <button type="button" class="accordion-toggle">
-                    <span>AIでタスクを生成 ✨</span>
-                    <span class="accordion-icon"></span>
-                </button>
-                <div class="accordion-content">
-                    <textarea id="gemini-prompt" placeholder="例: 来週はプロジェクトAの最終調整。月曜と火曜にデザイン修正。水曜にクライアントに提出。"></textarea>
-                    <button id="gemini-trigger-btn">
-                        <span class="default-text">生成する</span>
-                        <div class="loading-indicator" style="display: none;">
-                            <div class="spinner"></div>
-                            <span>生成中...</span>
-                        </div>
+            <div class="control-group">
+                <div id="ai-generator" class="accordion">
+                    <button type="button" class="accordion-toggle">
+                        <span>AIでタスクを生成 ✨</span>
+                        <span class="accordion-icon"></span>
                     </button>
+                    <div class="accordion-content">
+                        <textarea id="gemini-prompt" placeholder="例: 来週はプロジェクトAの最終調整。月曜と火曜にデザイン修正。水曜にクライアントに提出。"></textarea>
+                        <button id="gemini-trigger-btn">
+                            <span class="default-text">生成する</span>
+                            <div class="loading-indicator" style="display: none;">
+                                <div class="spinner"></div>
+                                <span>生成中...</span>
+                            </div>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
 
         <!-- Right Pane: Content -->
         <div id="right-pane">
-            <div id="view-switcher">
-                <button id="show-list-btn" class="active">リスト</button>
-                <button id="show-calendar-btn">カレンダー</button>
+            <div id="right-pane-header">
+                <h2 id="view-title">タスクリスト</h2>
+                <div id="view-switcher">
+                    <button id="show-list-btn" class="active">リスト</button>
+                    <button id="show-calendar-btn">カレンダー</button>
+                </div>
             </div>
             <main id="list-view"><div id="task-list-container"></div></main>
             <main id="calendar-view" style="display: none;"><div id="calendar-container"></div></main>
         </div>
     </div>
+
+    
+
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://npmcdn.com/flatpickr/dist/l10n/ja.js"></script>
+    <script src="script.js"></script>
 
     <!-- Modals -->
     <div id="label-editor-modal" class="modal-overlay" style="display: none;">
@@ -78,10 +103,6 @@
             <div class="modal-footer"><button id="modal-cancel-btn" class="button secondary">キャンセル</button><button id="modal-save-btn" class="button primary">保存</button></div>
         </div>
     </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="https://npmcdn.com/flatpickr/dist/l10n/ja.js"></script>
-    <script src="script.js"></script>
 
 </body>
 </html>
