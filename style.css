@@ -180,8 +180,24 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
     box-shadow: 0 1px 4px rgba(0,0,0,0.1);
 }
 
-#list-view { background: transparent; padding: 0; border: none; }
-#task-list-container { background: var(--bg-pane); border-radius: var(--radius-lg); overflow: hidden; }
+#list-view { 
+    background: transparent; 
+    padding: 0; 
+    border: none; 
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0; /* flexboxでの高さ制御に必要 */
+}
+
+#task-list-container { 
+    background: var(--bg-pane); 
+    border-radius: var(--radius-lg); 
+    overflow-y: auto; /* タスクリストのみスクロール可能 */
+    flex-grow: 1;
+    min-height: 0; /* flexboxでの高さ制御に必要 */
+}
+
 #calendar-view { 
     background: var(--bg-pane); 
     border-radius: var(--radius-lg); 

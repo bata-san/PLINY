@@ -31,18 +31,43 @@ let currentBinVersion = null; // JSONBIN.ioのバージョン管理用
 // 初期化処理
 // ===============================================
 document.addEventListener('DOMContentLoaded', () => {
-    flatpickr(document.getElementById('task-due-date'), {
-        mode: "range",
-        dateFormat: "Y-m-d",
-        altInput: true,
-        altFormat: "Y年m月d日",
-        locale: "ja"
-    });
+    // flatpickrを確実に初期化
+    initializeFlatpickr();
     initializeCalendar();
     initializeIcons();
     bindGlobalEvents();
     loadData();
 });
+
+function initializeFlatpickr() {
+    const dueDateInput = document.getElementById('task-due-date');
+    if (!dueDateInput) {
+        console.error('task-due-date要素が見つかりません');
+        return;
+    }
+
+    // 既存のflatpickrインスタンスを破棄
+    if (dueDateInput._flatpickr) {
+        dueDateInput._flatpickr.destroy();
+    }
+
+    // 新しいflatpickrインスタンスを作成
+    dueDateInput._flatpickr = flatpickr(dueDateInput, {
+        mode: "range",
+        dateFormat: "Y-m-d",
+        altInput: true,
+        altFormat: "Y年m月d日",
+        locale: "ja",
+        minDate: "today",
+        allowInput: false,
+        clickOpens: true,
+        onChange: function(selectedDates, dateStr, instance) {
+            console.log('日付が選択されました:', selectedDates);
+        }
+    });
+
+    console.log('flatpickr初期化完了:', dueDateInput._flatpickr);
+}
 
 function initializeIcons() {
     document.getElementById('undo-btn').innerHTML = ICONS.undo;
@@ -50,21 +75,35 @@ function initializeIcons() {
 }
 
 function initializeCalendar() {
-    calendar = new FullCalendar.Calendar(document.getElementById('calendar-container'), {
+    const calendarContainer = document.getElementById('calendar-container');
+    if (!calendarContainer) {
+        console.error('calendar-container要素が見つかりません');
+        return;
+    }
+
+    calendar = new FullCalendar.Calendar(calendarContainer, {
         initialView: window.innerWidth < 768 ? 'listWeek' : 'dayGridMonth',
         locale: 'ja',
-        headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,listWeek' },
+        headerToolbar: { 
+            left: 'prev,next today', 
+            center: 'title', 
+            right: 'dayGridMonth,timeGridWeek,listWeek' 
+        },
         height: '100%',
         events: [],
-        editable: true, // ドラッグ＆ドロップを有効化
-        eventDrop: handleEventDrop // ドロップ時のハンドラ
+        editable: true,
+        eventDrop: handleEventDrop,
+        eventDurationEditable: true,
+        eventStartEditable: true,
+        dragScroll: true,
+        eventDisplay: 'block',
+        dayMaxEvents: false
     });
+    
     calendar.render();
+    console.log('カレンダー初期化完了');
 }
 
-// ===============================================
-// データ管理 (JSONBIN)
-// ===============================================
 async function loadData() {
     const loadingOverlay = document.getElementById('loading-overlay');
     loadingOverlay.style.display = 'flex';
@@ -97,40 +136,82 @@ async function loadData() {
     }
 }
 
+// データ保存の堅牢化
 async function saveData(tasksToSave = tasks, labelsToSave = labels, isInitialSave = false) {
+    // 入力データの検証
+    if (!Array.isArray(tasksToSave) || !Array.isArray(labelsToSave)) {
+        console.error('saveData: 無効なデータ形式');
+        return;
+    }
+
+    // データの正規化とバリデーション
+    const normalizedTasks = tasksToSave.map(task => {
+        try {
+            return normalizeTask(task);
+        } catch (error) {
+            console.warn('タスクの正規化に失敗:', task, error);
+            return null;
+        }
+    }).filter(Boolean);
+
+    const validatedLabels = labelsToSave.filter(label => {
+        return label && typeof label.id !== 'undefined' && typeof label.name === 'string';
+    });
+
     const headers = {
         'Content-Type': 'application/json',
         'X-Master-Key': MASTER_KEY,
         'X-Bin-Versioning': 'false'
     };
 
-    // 初回保存時以外はIf-Matchヘッダーを追加
     if (!isInitialSave && currentBinVersion) {
         headers['If-Match'] = currentBinVersion;
     }
 
-    try {
-        const res = await fetch(API_URL, {
-            method: 'PUT',
-            headers: headers,
-            body: JSON.stringify({ tasks: tasksToSave, labels: labelsToSave })
-        });
+    const maxRetries = 3;
+    let retryCount = 0;
 
-        if (res.status === 412) { // Precondition Failed
-            alert("データの競合が発生しました。他の端末でデータが更新された可能性があります。最新のデータを読み込み直します。");
-            await loadData(); // 最新のデータを再読み込み
-            return; // 保存処理を中断
-        } else if (!res.ok) {
-            throw new Error(`保存失敗: ${res.status}`);
+    while (retryCount < maxRetries) {
+        try {
+            const res = await fetch(API_URL, {
+                method: 'PUT',
+                headers: headers,
+                body: JSON.stringify({ 
+                    tasks: normalizedTasks, 
+                    labels: validatedLabels,
+                    timestamp: new Date().toISOString() // デバッグ用タイムスタンプ
+                })
+            });
+
+            if (res.status === 412) {
+                console.warn('データの競合が検出されました');
+                if (confirm("データの競合が発生しました。他の端末でデータが更新された可能性があります。最新のデータを読み込み直しますか？")) {
+                    await loadData();
+                }
+                return;
+            } else if (!res.ok) {
+                throw new Error(`保存失敗: ${res.status} ${res.statusText}`);
+            }
+
+            currentBinVersion = res.headers.get('X-Bin-Meta-Version');
+            console.log('データ保存成功');
+            return; // 成功時は即座に終了
+
+        } catch (error) {
+            retryCount++;
+            console.error(`保存試行 ${retryCount}/${maxRetries} 失敗:`, error);
+            
+            if (retryCount >= maxRetries) {
+                console.error('最大リトライ回数に達しました');
+                if (confirm("データの保存に失敗しました。ページをリロードしますか？")) {
+                    window.location.reload();
+                }
+                break;
+            }
+            
+            // 指数バックオフでリトライ
+            await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
         }
-
-        // 保存成功後、新しいバージョンを更新
-        currentBinVersion = res.headers.get('X-Bin-Meta-Version');
-
-    } catch (e) {
-        alert("データの保存に失敗しました。UIをリロードします。"); 
-        console.error(e);
-        window.location.reload();
     }
 }
 
@@ -138,12 +219,39 @@ async function saveData(tasksToSave = tasks, labelsToSave = labels, isInitialSav
 // 描画処理
 // ===============================================
 function renderAll() {
-    renderTaskList();
-    renderCalendar();
-    renderLabelEditor();
-    renderAddTaskLabelSelector();
-    updateUndoRedoButtons();
-    bindAccordionEvents();
+    try {
+        // レンダリング前の状態チェック
+        if (!Array.isArray(tasks)) {
+            console.error('tasksが配列ではありません');
+            tasks = [];
+        }
+        if (!Array.isArray(labels)) {
+            console.error('labelsが配列ではありません');
+            labels = [];
+        }
+
+        renderTaskList();
+        renderCalendar();
+        renderLabelEditor();
+        renderAddTaskLabelSelector();
+        updateUndoRedoButtons();
+        bindAccordionEvents();
+        
+        console.log('全コンポーネントのレンダリング完了');
+    } catch (error) {
+        console.error('レンダリング中にエラーが発生:', error);
+        // 部分的なレンダリングを試行
+        try {
+            renderTaskList();
+        } catch (e) {
+            console.error('タスクリストのレンダリングに失敗:', e);
+        }
+        try {
+            renderLabelEditor();
+        } catch (e) {
+            console.error('ラベルエディタのレンダリングに失敗:', e);
+        }
+    }
 }
 
 function renderTaskList() {
@@ -204,22 +312,71 @@ function renderTaskList() {
 }
 
 function renderCalendar() {
-    if (!calendar) return;
-    const events = tasks.map(task => {
-        if (!task.startDate) return null;
-        const exclusiveEnd = new Date(task.endDate || task.startDate);
-        exclusiveEnd.setDate(exclusiveEnd.getDate() + 1);
-        const highestPrioLabel = getHighestPriorityLabel(task);
-        const eventColor = task.completed ? '#adb5bd' : (highestPrioLabel ? highestPrioLabel.color : 'var(--primary)');
-        return {
-            id: task.id, title: task.text, start: task.startDate,
-            end: exclusiveEnd.toISOString().split('T')[0], allDay: true,
-            backgroundColor: eventColor, borderColor: eventColor,
-            classNames: task.completed ? ['completed-event'] : []
-        };
-    }).filter(Boolean);
-    calendar.getEventSources().forEach(source => source.remove());
-    calendar.addEventSource(events);
+    if (!calendar) {
+        console.warn('カレンダーが初期化されていません');
+        return;
+    }
+
+    try {
+        // 既存のイベントソースをクリア
+        calendar.getEventSources().forEach(source => {
+            source.remove();
+        });
+
+        // タスクをカレンダーイベントに変換
+        const events = tasks.map(task => {
+            if (!task.startDate) {
+                console.warn('開始日がないタスクをスキップ:', task);
+                return null;
+            }
+
+            // より正確な日付処理
+            const startDate = task.startDate;
+            const endDate = task.endDate || task.startDate;
+            
+            // FullCalendarのallDayイベントでは、終了日は排他的（exclusive）
+            // つまり、endDateに1日追加する必要がある
+            const exclusiveEndDate = new Date(endDate + 'T00:00:00');
+            exclusiveEndDate.setUTCDate(exclusiveEndDate.getUTCDate() + 1);
+
+            const highestPrioLabel = getHighestPriorityLabel(task);
+            const eventColor = task.completed ? '#adb5bd' : (highestPrioLabel ? highestPrioLabel.color : '#007aff');
+
+            const calendarEvent = {
+                id: task.id,
+                title: task.text,
+                start: startDate, // YYYY-MM-DD形式のまま
+                end: exclusiveEndDate.toISOString().split('T')[0], // YYYY-MM-DD形式
+                allDay: true,
+                backgroundColor: eventColor,
+                borderColor: eventColor,
+                classNames: task.completed ? ['completed-event'] : [],
+                extendedProps: {
+                    originalTask: task,
+                    originalStartDate: startDate,
+                    originalEndDate: endDate
+                }
+            };
+
+            console.log('カレンダーイベント作成:', {
+                taskId: task.id,
+                taskStart: startDate,
+                taskEnd: endDate,
+                eventStart: calendarEvent.start,
+                eventEnd: calendarEvent.end
+            });
+
+            return calendarEvent;
+        }).filter(Boolean);
+
+        console.log('カレンダーイベント作成完了:', events.length + '件');
+
+        // 新しいイベントソースを追加
+        calendar.addEventSource(events);
+
+    } catch (error) {
+        console.error('カレンダーレンダリングエラー:', error);
+    }
 }
 
 function renderLabelEditor() {
@@ -500,13 +657,29 @@ function closeAllPopovers() {
 // ヘルパー関数
 // ===============================================
 function normalizeTask(task) {
+    if (!task || typeof task !== 'object') {
+        throw new Error('無効なタスクオブジェクト');
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+    
+    // 日付の妥当性チェック
+    const validateDate = (dateStr, fallback = today) => {
+        if (!dateStr) return fallback;
+        const date = new Date(dateStr + 'T00:00:00');
+        return isNaN(date.getTime()) ? fallback : dateStr;
+    };
+
+    const startDate = validateDate(task.startDate, today);
+    const endDate = validateDate(task.endDate, startDate);
+
     return {
-        id: task.id || `id-${Date.now()}-${Math.random()}`,
-        text: task.text || '(無題のタスク)',
-        startDate: task.startDate || new Date().toISOString().split('T')[0],
-        endDate: task.endDate || task.startDate || new Date().toISOString().split('T')[0],
-        completed: !!task.completed,
-        labelIds: Array.isArray(task.labelIds) ? task.labelIds : [],
+        id: task.id || `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        text: typeof task.text === 'string' ? task.text.trim() || '(無題のタスク)' : '(無題のタスク)',
+        startDate: startDate,
+        endDate: endDate >= startDate ? endDate : startDate, // 終了日が開始日より前の場合は修正
+        completed: Boolean(task.completed),
+        labelIds: Array.isArray(task.labelIds) ? task.labelIds.filter(id => id != null) : [],
         parentId: task.parentId || null,
         isCollapsed: task.isCollapsed ?? true
     };
@@ -536,46 +709,132 @@ async function saveDataAndRender() {
 // イベントハンドラ
 // ===============================================
 function bindGlobalEvents() {
+    // 1. グローバルクリックイベント
     document.addEventListener('click', (e) => {
-        if (!e.target.closest('.popover') && !e.target.closest('[data-action="edit-labels"]')) {
-            closeAllPopovers();
+        try {
+            if (!e.target.closest('.popover') && !e.target.closest('[data-action="edit-labels"]')) {
+                closeAllPopovers();
+            }
+        } catch (error) {
+            console.error('クリックイベント処理エラー:', error);
         }
     });
 
-    document.getElementById('task-form').addEventListener('submit', async e => {
+    // 2. タスクフォームのイベントハンドラー（重複を防ぐため一度だけ設定）
+    setupTaskFormEvents();
+
+    // 3. その他のイベントハンドラー
+    setupTaskListEvents();
+    setupViewSwitcherEvents();
+    setupUndoRedoEvents();
+    setupAiEvents();
+    setupWindowEvents();
+}
+
+function setupTaskFormEvents() {
+    const taskForm = document.getElementById('task-form');
+    if (!taskForm) {
+        console.error('task-form要素が見つかりません');
+        return;
+    }
+
+    // フォームを複製せずに、既存のイベントリスナーのみクリア
+    // 新しいアプローチ: 既存のsubmitイベントリスナーをremoveEventListenerで削除
+    const existingHandler = taskForm.onsubmit;
+    if (existingHandler) {
+        taskForm.removeEventListener('submit', existingHandler);
+    }
+
+    // flatpickrを再初期化（要素を複製しないため、既存のインスタンスをそのまま利用）
+    initializeFlatpickr();
+
+    // フォーム送信イベント
+    const formSubmitHandler = async (e) => {
         e.preventDefault();
-        const taskInput = document.getElementById('task-input');
-        const taskDueDate = document.getElementById('task-due-date');
-        const text = taskInput.value.trim();
-        const dates = taskDueDate._flatpickr.selectedDates;
-        const selectedLabelIds = Array.from(document.querySelectorAll('#add-task-label-selector .label-checkbox-item.selected input')).map(input => input.value);
+        
+        try {
+            const taskInput = document.getElementById('task-input');
+            const taskDueDate = document.getElementById('task-due-date');
+            
+            if (!taskInput || !taskDueDate) {
+                throw new Error('必要な入力要素が見つかりません');
+            }
 
-        if (!text || dates.length === 0) return;
-        
-        pushToUndoStack();
-        
-        const newTask = normalizeTask({
-            id: Date.now().toString(),
-            text,
-            startDate: dates[0].toISOString().split('T')[0],
-            endDate: (dates[1] || dates[0]).toISOString().split('T')[0],
-            labelIds: selectedLabelIds
-        });
-        tasks.push(newTask);
-        
-        await saveDataAndRender();
-        
-        taskInput.value = '';
-        taskDueDate._flatpickr.clear();
-        document.querySelectorAll('#add-task-label-selector .label-checkbox-item.selected').forEach(item => item.classList.remove('selected'));
-    });
+            const text = taskInput.value.trim();
+            if (!text) {
+                alert('タスク名を入力してください。');
+                return;
+            }
 
-    document.getElementById('task-list-container').addEventListener('click', async e => {
+            // flatpickrインスタンスの確認
+            if (!taskDueDate._flatpickr) {
+                console.log('flatpickrを再初期化します');
+                initializeFlatpickr();
+                if (!taskDueDate._flatpickr) {
+                    throw new Error('日付選択器が初期化できませんでした');
+                }
+            }
+
+            const dates = taskDueDate._flatpickr.selectedDates;
+            if (dates.length === 0) {
+                alert('期間を選択してください。');
+                return;
+            }
+
+            const selectedLabelIds = Array.from(document.querySelectorAll('#add-task-label-selector .label-checkbox-item.selected input'))
+                .map(input => input.value)
+                .filter(Boolean);
+
+            console.log('タスク作成開始:', { text, dates, selectedLabelIds });
+
+            pushToUndoStack();
+            
+            const newTask = normalizeTask({
+                id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                text,
+                startDate: dates[0].toISOString().split('T')[0],
+                endDate: (dates[1] || dates[0]).toISOString().split('T')[0],
+                labelIds: selectedLabelIds
+            });
+            
+            tasks.push(newTask);
+            await saveDataAndRender();
+            
+            // フォームのクリア
+            taskInput.value = '';
+            taskDueDate._flatpickr.clear();
+            document.querySelectorAll('#add-task-label-selector .label-checkbox-item.selected')
+                .forEach(item => item.classList.remove('selected'));
+
+            console.log('タスク作成完了:', newTask);
+                
+        } catch (error) {
+            console.error('タスク追加エラー:', error);
+            alert('タスクの追加に失敗しました。再度お試しください。');
+        }
+    };
+
+    // 新しいイベントリスナーを追加
+    taskForm.addEventListener('submit', formSubmitHandler);
+}
+
+function setupTaskListEvents() {
+    const taskListContainer = document.getElementById('task-list-container');
+    if (!taskListContainer) return;
+
+    // 既存のイベントリスナーを削除
+    const newContainer = taskListContainer.cloneNode(true);
+    taskListContainer.parentNode.replaceChild(newContainer, taskListContainer);
+
+    // クリックイベント
+    newContainer.addEventListener('click', async (e) => {
         const target = e.target.closest('[data-action]');
         if (!target) return;
+
         const action = target.dataset.action;
         const card = target.closest('.task-card');
         if (!card) return;
+
         const taskId = card.dataset.taskId;
         const task = tasks.find(t => t.id === taskId);
         if (!task) return;
@@ -583,36 +842,49 @@ function bindGlobalEvents() {
         let needsSave = false, needsRender = true;
         pushToUndoStack();
 
-        switch (action) {
-            case 'toggle': 
-                task.isCollapsed = !task.isCollapsed; 
-                break;
-            case 'complete': 
-                task.completed = !task.completed; 
-                needsSave = true; 
-                break;
-            case 'edit-labels': 
-                e.stopPropagation();
-                showLabelSelectPopover(target, task); 
-                needsRender = false; 
-                break;
-            case 'delete':
-                const getDescendants = id => tasks.filter(t => t.parentId === id).flatMap(c => [c.id, ...getDescendants(c.id)]);
-                const descendantIds = getDescendants(taskId);
-                if (confirm(`このタスクと${descendantIds.length}個の子タスクを削除しますか？`)) {
-                    tasks = tasks.filter(t => ![taskId, ...descendantIds].includes(t.id));
-                    needsSave = true;
-                } else { 
+        try {
+            switch (action) {
+                case 'toggle': 
+                    task.isCollapsed = !task.isCollapsed; 
+                    break;
+                case 'complete': 
+                    task.completed = !task.completed; 
+                    needsSave = true; 
+                    break;
+                case 'edit-labels': 
+                    e.stopPropagation();
+                    showLabelSelectPopover(target, task); 
                     needsRender = false; 
-                }
-                break;
+                    break;
+                case 'delete':
+                    const getDescendants = id => tasks.filter(t => t.parentId === id).flatMap(c => [c.id, ...getDescendants(c.id)]);
+                    const descendantIds = getDescendants(taskId);
+                    if (confirm(`このタスクと${descendantIds.length}個の子タスクを削除しますか？`)) {
+                        tasks = tasks.filter(t => ![taskId, ...descendantIds].includes(t.id));
+                        needsSave = true;
+                    } else { 
+                        needsRender = false; 
+                    }
+                    break;
+            }
+
+            if (needsRender) renderAll();
+            if (needsSave) await saveData();
+
+        } catch (error) {
+            console.error('タスクアクション処理エラー:', error);
+            alert('操作に失敗しました。再度お試しください。');
         }
-        if (needsRender) renderAll();
-        if (needsSave) await saveData();
     });
 
+    // ドラッグ&ドロップイベント
+    setupDragAndDropEvents(newContainer);
+}
+
+function setupDragAndDropEvents(container) {
     let draggedElement = null;
-    document.getElementById('task-list-container').addEventListener('dragstart', e => {
+    
+    container.addEventListener('dragstart', (e) => {
         const card = e.target.closest('.task-card');
         if (card) {
             draggedElement = card;
@@ -620,35 +892,70 @@ function bindGlobalEvents() {
             setTimeout(() => card.classList.add('dragging'), 0);
         }
     });
-    document.getElementById('task-list-container').addEventListener('dragend', () => {
-        if (draggedElement) draggedElement.classList.remove('dragging');
-        draggedElement = null;
+    
+    container.addEventListener('dragend', () => {
+        if (draggedElement) {
+            draggedElement.classList.remove('dragging');
+            draggedElement = null;
+        }
     });
-    document.getElementById('task-list-container').addEventListener('dragover', e => { e.preventDefault(); });
-    document.getElementById('task-list-container').addEventListener('drop', async e => {
+    
+    container.addEventListener('dragover', (e) => {
+        e.preventDefault();
+    });
+    
+    container.addEventListener('drop', async (e) => {
         e.preventDefault();
         const targetCard = e.target.closest('.task-card');
         if (!targetCard || !draggedElement) return;
+        
         const draggedId = e.dataTransfer.getData('text/plain');
         const targetId = targetCard.dataset.taskId;
         if (draggedId === targetId) return;
+        
         const draggedTask = tasks.find(t => t.id === draggedId);
-        let p = targetId; while (p) { if (p === draggedId) { alert('自分の子孫には移動できません。'); return; } p = tasks.find(t => t.id === p)?.parentId; }
-        pushToUndoStack();
-        draggedTask.parentId = targetId;
-        const targetTask = tasks.find(t => t.id === targetId);
-        if (targetTask) targetTask.isCollapsed = false;
-        await saveDataAndRender();
+        if (!draggedTask) return;
+
+        // 循環参照チェック
+        let p = targetId;
+        while (p) {
+            if (p === draggedId) {
+                alert('自分の子孫には移動できません。');
+                return;
+            }
+            p = tasks.find(t => t.id === p)?.parentId;
+        }
+        
+        try {
+            pushToUndoStack();
+            draggedTask.parentId = targetId;
+            
+            const targetTask = tasks.find(t => t.id === targetId);
+            if (targetTask) targetTask.isCollapsed = false;
+            
+            await saveDataAndRender();
+        } catch (error) {
+            console.error('ドラッグ&ドロップエラー:', error);
+            alert('移動に失敗しました。');
+        }
     });
+}
 
-    document.getElementById('show-list-btn').addEventListener('click', () => switchView('list'));
-    document.getElementById('show-calendar-btn').addEventListener('click', () => switchView('calendar'));
-    
-    document.getElementById('undo-btn').addEventListener('click', handleUndo);
-    document.getElementById('redo-btn').addEventListener('click', handleRedo);
+function setupViewSwitcherEvents() {
+    document.getElementById('show-list-btn')?.addEventListener('click', () => switchView('list'));
+    document.getElementById('show-calendar-btn')?.addEventListener('click', () => switchView('calendar'));
+}
 
-    document.getElementById('gemini-trigger-btn').addEventListener('click', handleAiInteraction);
-    
+function setupUndoRedoEvents() {
+    document.getElementById('undo-btn')?.addEventListener('click', handleUndo);
+    document.getElementById('redo-btn')?.addEventListener('click', handleRedo);
+}
+
+function setupAiEvents() {
+    document.getElementById('gemini-trigger-btn')?.addEventListener('click', handleAiInteraction);
+}
+
+function setupWindowEvents() {
     window.addEventListener('resize', () => {
         if (calendar) {
             calendar.changeView(window.innerWidth < 768 ? 'listWeek' : 'dayGridMonth');
@@ -698,21 +1005,80 @@ function switchView(view) {
 }
 
 async function handleEventDrop({ event, revert }) {
+    console.log('イベントドロップ開始:', { 
+        eventId: event.id, 
+        start: event.start, 
+        end: event.end,
+        startString: event.startStr,
+        endString: event.endStr
+    });
+
     const taskId = event.id;
     const task = tasks.find(t => t.id.toString() === taskId.toString());
 
-    if (task) {
+    if (!task) {
+        console.warn(`タスクが見つかりません: ${taskId}`);
+        revert();
+        return;
+    }
+
+    try {
         pushToUndoStack();
-        const newStartDate = event.start.toISOString().split('T')[0];
-        // FullCalendarのall-dayイベントのendはexclusiveなので、1日引く
-        const newEndDate = event.end ? new Date(event.end.getTime() - 86400000).toISOString().split('T')[0] : newStartDate;
         
+        // 開始日の計算（UTCタイムゾーンの問題を回避）
+        let newStartDate, newEndDate;
+        
+        if (event.startStr) {
+            // startStrを使用してより正確な日付を取得
+            newStartDate = event.startStr;
+        } else {
+            newStartDate = event.start.toISOString().split('T')[0];
+        }
+
+        // 終了日の計算
+        if (event.endStr) {
+            // endStrが存在する場合はそれを使用
+            const endDateFromStr = new Date(event.endStr);
+            endDateFromStr.setDate(endDateFromStr.getDate() - 1); // FullCalendarの排他的終了日を調整
+            newEndDate = endDateFromStr.toISOString().split('T')[0];
+        } else if (event.end) {
+            // event.endを使用する場合
+            const endDate = new Date(event.end);
+            endDate.setDate(endDate.getDate() - 1); // FullCalendarの排他的終了日を調整
+            newEndDate = endDate.toISOString().split('T')[0];
+        } else {
+            // 終了日がない場合は開始日と同じ
+            newEndDate = newStartDate;
+        }
+
+        // 日付の妥当性チェック
+        if (newEndDate < newStartDate) {
+            newEndDate = newStartDate;
+        }
+
+        console.log('日付変更の詳細:', {
+            taskId,
+            originalStart: task.startDate,
+            originalEnd: task.endDate,
+            eventStart: event.start,
+            eventEnd: event.end,
+            eventStartStr: event.startStr,
+            eventEndStr: event.endStr,
+            calculatedStart: newStartDate,
+            calculatedEnd: newEndDate
+        });
+
         task.startDate = newStartDate;
         task.endDate = newEndDate;
-        
+
         await saveDataAndRender();
-    } else {
+        
+        console.log('タスクの日程変更完了');
+
+    } catch (error) {
+        console.error('タスクの日程変更中にエラーが発生:', error);
         revert();
+        alert('タスクの日程変更に失敗しました。再度お試しください。');
     }
 }
 
