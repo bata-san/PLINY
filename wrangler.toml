@@ -4,15 +4,7 @@ compatibility_date = "2024-01-01"
 
 [[kv_namespaces]]
 binding = "PLINY_KV"
-id = "your-kv-namespace-id"
+id = "dabbf2c6980d4a428b08727ca82b5e41"
 
-[env.production.vars]
-MASTER_KEY = "$2a$10$l.shMPQkZut9GF8QmO5kjuUe5EuHpRA4sATqrlfXG.lNjF1n0clg."
-ACCESS_KEY = "$2a$10$h10RX1N2om3YrLjEs313gOKLSH5XN2ov/qECHWf/qoh5ex4Sz3JpG"
-BIN_ID = "685bfb988561e97a502b9056"
+[vars]
 GEMINI_API_KEY = "AIzaSyD4GPZ85iVlKjbmd-j3DKfbPooGpqlaZtM"
-
-[env.development]
-[[env.development.kv_namespaces]]
-binding = "PLINY_KV"
-preview_id = "your-preview-kv-namespace-id"

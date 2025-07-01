@@ -2,7 +2,6 @@
 // Cloudflare Worker用 PLINY バックエンド (KV版)
 // ===============================================
 
-const GEMINI_API_KEY = 'AIzaSyD4GPZ85iVlKjbmd-j3DKfbPooGpqlaZtM';
 const DATA_KEY = 'pliny_data';
 
 // ===============================================
@@ -305,7 +304,7 @@ export default {
                 
                 const fullPrompt = buildAiPrompt(prompt, tasks, labels);
                 
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`, {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${env.GEMINI_API_KEY}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] })
