@@ -719,6 +719,7 @@ function bindGlobalEvents() {
     setupViewSwitcherEvents();
     setupUndoRedoEvents();
     setupAiEvents();
+    setupDataManagerEvents();
     setupWindowEvents();
 }
 
@@ -948,6 +949,109 @@ function setupViewSwitcherEvents() {
 function setupUndoRedoEvents() {
     document.getElementById('undo-btn')?.addEventListener('click', handleUndo);
     document.getElementById('redo-btn')?.addEventListener('click', handleRedo);
+}
+
+function setupDataManagerEvents() {
+    // 生JSONデータの表示
+    document.getElementById('load-raw-data-btn')?.addEventListener('click', async () => {
+        try {
+            const response = await fetch(`${WORKER_URL}/api/kv/raw`);
+            if (!response.ok) {
+                throw new Error(`データ取得エラー: ${response.status}`);
+            }
+            const rawData = await response.text();
+            
+            const editor = document.getElementById('raw-data-editor');
+            const buttons = document.getElementById('raw-data-buttons');
+            
+            editor.value = JSON.stringify(JSON.parse(rawData || '{}'), null, 2);
+            editor.style.display = 'block';
+            buttons.style.display = 'flex';
+        } catch (error) {
+            alert(`データの取得に失敗しました: ${error.message}`);
+        }
+    });
+
+    // 生JSONデータの保存
+    document.getElementById('save-raw-data-btn')?.addEventListener('click', async () => {
+        try {
+            const editor = document.getElementById('raw-data-editor');
+            const rawData = editor.value;
+            
+            // JSONの妥当性をチェック
+            JSON.parse(rawData);
+            
+            const response = await fetch(`${WORKER_URL}/api/kv/raw`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: rawData
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || `保存エラー: ${response.status}`);
+            }
+            
+            alert('データが正常に保存されました');
+            
+            // エディターを隠して、データを再読み込み
+            editor.style.display = 'none';
+            document.getElementById('raw-data-buttons').style.display = 'none';
+            await loadData();
+        } catch (error) {
+            alert(`データの保存に失敗しました: ${error.message}`);
+        }
+    });
+
+    // 生JSONデータ編集のキャンセル
+    document.getElementById('cancel-raw-edit-btn')?.addEventListener('click', () => {
+        const editor = document.getElementById('raw-data-editor');
+        const buttons = document.getElementById('raw-data-buttons');
+        
+        editor.style.display = 'none';
+        buttons.style.display = 'none';
+        editor.value = '';
+    });
+
+    // JSONBinからのインポート
+    document.getElementById('import-jsonbin-btn')?.addEventListener('click', async () => {
+        try {
+            const urlInput = document.getElementById('jsonbin-url');
+            const mergeCheckbox = document.getElementById('merge-with-existing');
+            
+            const jsonbinUrl = urlInput.value.trim();
+            if (!jsonbinUrl) {
+                alert('JSONBin URLを入力してください');
+                return;
+            }
+            
+            const response = await fetch(`${WORKER_URL}/api/import/jsonbin`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    jsonbinUrl: jsonbinUrl,
+                    mergeWithExisting: mergeCheckbox.checked
+                })
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || `インポートエラー: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            alert(`インポートが完了しました！\n\nインポート数:\n- タスク: ${result.imported.tasks}個\n- ラベル: ${result.imported.labels}個\n\n最終データ数:\n- タスク: ${result.final.tasks}個\n- ラベル: ${result.final.labels}個`);
+            
+            // フォームをクリア
+            urlInput.value = '';
+            mergeCheckbox.checked = false;
+            
+            // データを再読み込み
+            await loadData();
+        } catch (error) {
+            alert(`インポートに失敗しました: ${error.message}`);
+        }
+    });
 }
 
 function setupAiEvents() {

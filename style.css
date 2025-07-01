@@ -250,6 +250,7 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
     width: 32px; height: 32px;
     display: flex; align-items: center; justify-content: center;
     color: var(--text-secondary); cursor: pointer; border-radius: 50%;
+    margin-left:-1rem;
 }
 .task-toggle:hover { color: var(--primary); }
 .task-toggle.hidden { display: none; }
@@ -597,8 +598,85 @@ button:disabled {
     border-radius: 50%;
 }
 
-.label-select-item .label-name {
-    flex-grow: 1;
+/* データ管理セクション */
+.data-manager-section {
+    margin: 16px 0;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.data-manager-section:last-child {
+    border-bottom: none;
+}
+
+.data-manager-section h4 {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+#raw-data-editor {
+    width: 100%;
+    min-height: 200px;
+    margin: 8px 0;
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-pane);
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 12px;
+    line-height: 1.4;
+    resize: vertical;
+    transition: var(--transition);
+}
+
+#raw-data-editor:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: var(--shadow-focus);
+}
+
+#raw-data-buttons {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+#raw-data-buttons .button {
+    flex: 1;
+}
+
+#jsonbin-url {
+    width: 100%;
+    margin: 8px 0;
+    padding: 10px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-pane);
+    font-size: 14px;
+    transition: var(--transition);
+}
+
+#jsonbin-url:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: var(--shadow-focus);
+}
+
+.data-manager-section label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.data-manager-section input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--primary);
 }
 
 /* 変更点ツリー（履歴の可視化）:

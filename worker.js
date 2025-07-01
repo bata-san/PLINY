@@ -337,6 +337,113 @@ export default {
                 });
             }
 
+            // KVデータ直接取得エンドポイント（デバッグ用）
+            if (url.pathname === '/api/kv/raw' && request.method === 'GET') {
+                const rawData = await env.PLINY_KV.get(DATA_KEY);
+                return new Response(rawData || '{}', {
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+                });
+            }
+
+            // KVデータ直接設定エンドポイント（デバッグ用）
+            if (url.pathname === '/api/kv/raw' && request.method === 'PUT') {
+                const rawData = await request.text();
+                
+                // JSONとして有効かチェック
+                try {
+                    JSON.parse(rawData);
+                } catch (error) {
+                    return new Response(JSON.stringify({ error: '無効なJSON形式です' }), {
+                        status: 400,
+                        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+                    });
+                }
+                
+                await env.PLINY_KV.put(DATA_KEY, rawData);
+                return new Response(JSON.stringify({ success: true, message: 'データが保存されました' }), {
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+                });
+            }
+
+            // JSONBinからのデータインポートエンドポイント
+            if (url.pathname === '/api/import/jsonbin' && request.method === 'POST') {
+                const { jsonbinUrl, mergeWithExisting = false } = await request.json();
+                
+                if (!jsonbinUrl) {
+                    return new Response(JSON.stringify({ error: 'JSONBin URLが必要です' }), {
+                        status: 400,
+                        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+                    });
+                }
+                
+                try {
+                    // JSONBinからデータを取得
+                    const response = await fetch(jsonbinUrl);
+                    if (!response.ok) {
+                        throw new Error(`JSONBinからのデータ取得に失敗: ${response.status}`);
+                    }
+                    
+                    const jsonbinData = await response.json();
+                    
+                    let importedTasks = [];
+                    let importedLabels = [];
+                    
+                    // JSONBinのデータ形式を解析
+                    if (jsonbinData.tasks && Array.isArray(jsonbinData.tasks)) {
+                        importedTasks = jsonbinData.tasks.map(normalizeTask);
+                    }
+                    
+                    if (jsonbinData.labels && Array.isArray(jsonbinData.labels)) {
+                        importedLabels = jsonbinData.labels;
+                    }
+                    
+                    let finalTasks = importedTasks;
+                    let finalLabels = importedLabels;
+                    
+                    if (mergeWithExisting) {
+                        // 既存データとマージ
+                        const existingData = await loadDataFromKV(env);
+                        
+                        // タスクをマージ（IDの重複を避ける)
+                        const existingTaskIds = new Set(existingData.tasks.map(t => t.id));
+                        const newTasks = importedTasks.filter(t => !existingTaskIds.has(t.id));
+                        finalTasks = [...existingData.tasks, ...newTasks];
+                        
+                        // ラベルをマージ（名前の重複を避ける）
+                        const existingLabelNames = new Set(existingData.labels.map(l => l.name));
+                        const newLabels = importedLabels.filter(l => !existingLabelNames.has(l.name));
+                        finalLabels = [...existingData.labels, ...newLabels];
+                    }
+                    
+                    // KVに保存
+                    const result = await saveDataToKV(env, finalTasks, finalLabels);
+                    
+                    return new Response(JSON.stringify({
+                        success: true,
+                        message: 'JSONBinからのインポートが完了しました',
+                        imported: {
+                            tasks: importedTasks.length,
+                            labels: importedLabels.length
+                        },
+                        final: {
+                            tasks: finalTasks.length,
+                            labels: finalLabels.length
+                        },
+                        version: result.version
+                    }), {
+                        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+                    });
+                    
+                } catch (error) {
+                    return new Response(JSON.stringify({ 
+                        error: `インポートエラー: ${error.message}` 
+                    }), {
+                        status: 500,
+                        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+                    });
+                }
+            }
+
             return new Response('Not Found', { status: 404, headers: corsHeaders });
 
         } catch (error) {

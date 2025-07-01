@@ -75,6 +75,34 @@
                     </div>
                 </div>
             </div>
+
+            <div class="control-group">
+                <div id="data-manager" class="accordion">
+                    <button type="button" class="accordion-toggle">
+                        <span>データ管理 🛠️</span>
+                        <span class="accordion-icon"></span>
+                    </button>
+                    <div class="accordion-content">
+                        <div class="data-manager-section">
+                            <h4>JSONデータ編集</h4>
+                            <button id="load-raw-data-btn" class="button secondary">現在のデータを表示</button>
+                            <textarea id="raw-data-editor" placeholder="JSON形式でデータを直接編集できます..." rows="10" style="display: none;"></textarea>
+                            <div id="raw-data-buttons" style="display: none;">
+                                <button id="save-raw-data-btn" class="button primary">保存</button>
+                                <button id="cancel-raw-edit-btn" class="button secondary">キャンセル</button>
+                            </div>
+                        </div>
+                        <div class="data-manager-section">
+                            <h4>JSONBinからインポート</h4>
+                            <input type="url" id="jsonbin-url" placeholder="JSONBin URL (例: https://api.jsonbin.io/v3/b/...)">
+                            <label>
+                                <input type="checkbox" id="merge-with-existing"> 既存データとマージ
+                            </label>
+                            <button id="import-jsonbin-btn" class="button primary">インポート</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Right Pane: Content -->
