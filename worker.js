@@ -202,11 +202,58 @@ function processAiActions(actions, tasks, labels) {
                         if (action.newStartDate) taskToUpdate.startDate = action.newStartDate;
                         if (action.newEndDate) taskToUpdate.endDate = action.newEndDate;
                         if (action.completed !== undefined) taskToUpdate.completed = action.completed;
-                        // ...existing label logic...
+                        if (action.addLabelName) {
+                            const labelToAdd = findClosestMatch(action.addLabelName, labels, 'name');
+                            if (labelToAdd && !taskToUpdate.labelIds.includes(labelToAdd.id)) {
+                                taskToUpdate.labelIds.push(labelToAdd.id);
+                            }
+                        }
+                        if (action.removeLabelName) {
+                            const labelToRemove = findClosestMatch(action.removeLabelName, labels, 'name');
+                            if (labelToRemove) {
+                                taskToUpdate.labelIds = taskToUpdate.labelIds.filter(id => id !== labelToRemove.id);
+                            }
+                        }
                     }
                     break;
 
-                // ...existing cases...
+                case 'deleteTask':
+                    const taskToDelete = findClosestMatch(action.taskText, tasks, 'text');
+                    if (taskToDelete) {
+                        const getDescendants = id => tasks.filter(t => t.parentId === id).flatMap(c => [c.id, ...getDescendants(c.id)]);
+                        const descendantIds = getDescendants(taskToDelete.id);
+                        tasks = tasks.filter(t => ![taskToDelete.id, ...descendantIds].includes(t.id));
+                    }
+                    break;
+
+                case 'addLabel':
+                    const newLabel = {
+                        id: `label-${Date.now()}`,
+                        name: action.name,
+                        color: action.color || 'transparent',
+                        priority: action.priority || (labels.length > 0 ? Math.max(...labels.map(l => l.priority || 0)) : 0) + 1
+                    };
+                    labels.push(newLabel);
+                    break;
+
+                case 'updateLabel':
+                    const labelToUpdate = findClosestMatch(action.labelName, labels, 'name');
+                    if (labelToUpdate) {
+                        if (action.newName) labelToUpdate.name = action.newName;
+                        if (action.newColor) labelToUpdate.color = action.newColor;
+                        if (action.newPriority) labelToUpdate.priority = action.newPriority;
+                    }
+                    break;
+
+                case 'deleteLabel':
+                    const labelToDelete = findClosestMatch(action.labelName, labels, 'name');
+                    if (labelToDelete) {
+                        labels = labels.filter(l => l.id !== labelToDelete.id);
+                        tasks.forEach(t => {
+                            t.labelIds = t.labelIds.filter(id => id !== labelToDelete.id);
+                        });
+                    }
+                    break;
             }
         } catch (e) {
             console.error(`アクションの処理に失敗しました: ${action.action}`, e);
