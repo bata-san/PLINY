@@ -1,12 +1,9 @@
 // ===============================================
-// Cloudflare Worker用 PLINY バックエンド
+// Cloudflare Worker用 PLINY バックエンド (KV版)
 // ===============================================
 
-const MASTER_KEY = '$2a$10$l.shMPQkZut9GF8QmO5kjuUe5EuHpRA4sATqrlfXG.lNjF1n0clg.';
-const ACCESS_KEY = '$2a$10$h10RX1N2om3YrLjEs313gOKLSH5XN2ov/qECHWf/qoh5ex4Sz3JpG';
-const BIN_ID = '685bfb988561e97a502b9056';
 const GEMINI_API_KEY = 'AIzaSyD4GPZ85iVlKjbmd-j3DKfbPooGpqlaZtM';
-const API_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+const DATA_KEY = 'pliny_data';
 
 // ===============================================
 // CORS ヘッダー設定
@@ -81,33 +78,33 @@ function findClosestMatch(query, items, key = 'text') {
 // ===============================================
 // データ操作関数
 // ===============================================
-async function loadDataFromBin() {
-    const response = await fetch(`${API_URL}/latest`, {
-        headers: { 'X-Access-Key': ACCESS_KEY }
-    });
-    
-    if (!response.ok) {
-        if (response.status === 404) {
+async function loadDataFromKV(env) {
+    try {
+        const data = await env.PLINY_KV.get(DATA_KEY, 'json');
+        
+        if (!data) {
             return {
                 tasks: [],
                 labels: [
                     { id: 'default-1', name: '優先度: 高', color: '#ff3b30', priority: 1 },
                     { id: 'default-2', name: '優先度: 中', color: '#ff9500', priority: 2 },
                     { id: 'default-3', name: '優先度: 低', color: '#34c759', priority: 3 }
-                ]
+                ],
+                version: 1
             };
         }
-        throw new Error(`データ読み込みエラー: ${response.status}`);
+        
+        const tasks = Array.isArray(data.tasks) ? data.tasks.map(normalizeTask) : [];
+        const labels = Array.isArray(data.labels) ? data.labels : [];
+        
+        return { tasks, labels, version: data.version || 1 };
+    } catch (error) {
+        console.error('KVからのデータ読み込みエラー:', error);
+        throw new Error(`データ読み込みエラー: ${error.message}`);
     }
-    
-    const data = await response.json();
-    const tasks = Array.isArray(data.record?.tasks) ? data.record.tasks.map(normalizeTask) : [];
-    const labels = Array.isArray(data.record?.labels) ? data.record.labels : [];
-    
-    return { tasks, labels };
 }
 
-async function saveDataToBin(tasks, labels) {
+async function saveDataToKV(env, tasks, labels, expectedVersion = null) {
     const normalizedTasks = tasks.map(task => {
         try {
             return normalizeTask(task);
@@ -121,25 +118,24 @@ async function saveDataToBin(tasks, labels) {
         return label && typeof label.id !== 'undefined' && typeof label.name === 'string';
     });
 
-    const response = await fetch(API_URL, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-Master-Key': MASTER_KEY,
-            'X-Bin-Versioning': 'false'
-        },
-        body: JSON.stringify({
-            tasks: normalizedTasks,
-            labels: validatedLabels,
-            timestamp: new Date().toISOString()
-        })
-    });
-
-    if (!response.ok) {
-        throw new Error(`データ保存エラー: ${response.status}`);
+    // バージョン管理（楽観的ロック）
+    const currentData = await loadDataFromKV(env);
+    const newVersion = (currentData.version || 1) + 1;
+    
+    if (expectedVersion && currentData.version !== expectedVersion) {
+        throw new Error('CONFLICT');
     }
 
-    return await response.json();
+    const dataToSave = {
+        tasks: normalizedTasks,
+        labels: validatedLabels,
+        version: newVersion,
+        timestamp: new Date().toISOString()
+    };
+
+    await env.PLINY_KV.put(DATA_KEY, JSON.stringify(dataToSave));
+    
+    return { success: true, version: newVersion };
 }
 
 // ===============================================
@@ -276,7 +272,7 @@ export default {
         try {
             // データ取得エンドポイント
             if (url.pathname === '/api/data' && request.method === 'GET') {
-                const data = await loadDataFromBin();
+                const data = await loadDataFromKV(env);
                 return new Response(JSON.stringify(data), {
                     headers: { ...corsHeaders, 'Content-Type': 'application/json' }
                 });
@@ -284,17 +280,28 @@ export default {
 
             // データ保存エンドポイント
             if (url.pathname === '/api/data' && request.method === 'PUT') {
-                const { tasks, labels } = await request.json();
-                await saveDataToBin(tasks, labels);
-                return new Response(JSON.stringify({ success: true }), {
-                    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-                });
+                const { tasks, labels, expectedVersion } = await request.json();
+                
+                try {
+                    const result = await saveDataToKV(env, tasks, labels, expectedVersion);
+                    return new Response(JSON.stringify(result), {
+                        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+                    });
+                } catch (error) {
+                    if (error.message === 'CONFLICT') {
+                        return new Response(JSON.stringify({ error: 'CONFLICT' }), {
+                            status: 409,
+                            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+                        });
+                    }
+                    throw error;
+                }
             }
 
             // AIアシスタントエンドポイント
             if (url.pathname === '/api/ai' && request.method === 'POST') {
                 const { prompt } = await request.json();
-                const { tasks, labels } = await loadDataFromBin();
+                const { tasks, labels } = await loadDataFromKV(env);
                 
                 const fullPrompt = buildAiPrompt(prompt, tasks, labels);
                 
@@ -323,7 +330,7 @@ export default {
 
                 if (actions.length > 0) {
                     processAiActions(actions, tasks, labels);
-                    await saveDataToBin(tasks, labels);
+                    await saveDataToKV(env, tasks, labels);
                 }
 
                 return new Response(JSON.stringify({ actions, tasks, labels }), {

@@ -1,11 +1,7 @@
 // ===============================================
 // 定数
 // ===============================================
-const MASTER_KEY = '$2a$10$l.shMPQkZut9GF8QmO5kjuUe5EuHpRA4sATqrlfXG.lNjF1n0clg.';
-const ACCESS_KEY = '$2a$10$h10RX1N2om3YrLjEs313gOKLSH5XN2ov/qECHWf/qoh5ex4Sz3JpG';
-const BIN_ID = '685bfb988561e97a502b9056';
-const GEMINI_API_KEY = 'AIzaSyD4GPZ85iVlKjbmd-j3DKfbPooGpqlaZtM';
-const API_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+const WORKER_URL = 'https://pliny-worker.your-subdomain.workers.dev'; // あなたのWorkerドメインに変更
 const PRESET_COLORS = ['#007aff', '#ff9500', '#34c759', '#ff3b30', '#af52de', '#5856d6', '#ff2d55', '#ffcc00', '#8e8e93'];
 const ICONS = {
     delete: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`,
@@ -25,7 +21,7 @@ let labels = [];
 let calendar;
 let undoStack = [];
 let redoStack = [];
-let currentBinVersion = null; // JSONBIN.ioのバージョン管理用
+let currentDataVersion = null; // バージョン管理用
 
 // ===============================================
 // 初期化処理
@@ -120,43 +116,30 @@ async function loadData() {
     const loadingOverlay = document.getElementById('loading-overlay');
     loadingOverlay.style.display = 'flex';
     try {
-        const res = await fetch(`${API_URL}/latest`, { headers: { 'X-Access-Key': ACCESS_KEY } });
+        const res = await fetch(`${WORKER_URL}/api/data`);
         if (!res.ok) {
-            if (res.status === 404) { 
-                tasks = []; 
-                labels = [
-                    { id: 'default-1', name: '優先度: 高', color: '#ff3b30', priority: 1 },
-                    { id: 'default-2', name: '優先度: 中', color: '#ff9500', priority: 2 },
-                    { id: 'default-3', name: '優先度: 低', color: '#34c759', priority: 3 }
-                ]; 
-                // 初期データ保存時にはバージョンチェックをスキップ
-                await saveData(tasks, labels, true); 
-                renderAll(); 
-                return; 
-            }
             throw new Error(`サーバーエラー: ${res.status}`);
         }
-        currentBinVersion = res.headers.get('X-Bin-Meta-Version');
+        
         const data = await res.json();
-        tasks = Array.isArray(data.record?.tasks) ? data.record.tasks.map(normalizeTask) : [];
-        labels = Array.isArray(data.record?.labels) ? data.record.labels : [];
+        currentDataVersion = data.version;
+        tasks = Array.isArray(data.tasks) ? data.tasks.map(normalizeTask) : [];
+        labels = Array.isArray(data.labels) ? data.labels : [];
         renderAll();
     } catch (e) {
-        alert("データの読み込みに失敗しました。"); console.error(e);
+        alert("データの読み込みに失敗しました。"); 
+        console.error(e);
     } finally {
         loadingOverlay.style.display = 'none';
     }
 }
 
-// データ保存の堅牢化
 async function saveData(tasksToSave = tasks, labelsToSave = labels, isInitialSave = false) {
-    // 入力データの検証
     if (!Array.isArray(tasksToSave) || !Array.isArray(labelsToSave)) {
         console.error('saveData: 無効なデータ形式');
         return;
     }
 
-    // データの正規化とバリデーション
     const normalizedTasks = tasksToSave.map(task => {
         try {
             return normalizeTask(task);
@@ -170,32 +153,27 @@ async function saveData(tasksToSave = tasks, labelsToSave = labels, isInitialSav
         return label && typeof label.id !== 'undefined' && typeof label.name === 'string';
     });
 
-    const headers = {
-        'Content-Type': 'application/json',
-        'X-Master-Key': MASTER_KEY,
-        'X-Bin-Versioning': 'false'
-    };
-
-    if (!isInitialSave && currentBinVersion) {
-        headers['If-Match'] = currentBinVersion;
-    }
-
     const maxRetries = 3;
     let retryCount = 0;
 
     while (retryCount < maxRetries) {
         try {
-            const res = await fetch(API_URL, {
+            const requestBody = {
+                tasks: normalizedTasks,
+                labels: validatedLabels
+            };
+
+            if (!isInitialSave && currentDataVersion) {
+                requestBody.expectedVersion = currentDataVersion;
+            }
+
+            const res = await fetch(`${WORKER_URL}/api/data`, {
                 method: 'PUT',
-                headers: headers,
-                body: JSON.stringify({ 
-                    tasks: normalizedTasks, 
-                    labels: validatedLabels,
-                    timestamp: new Date().toISOString() // デバッグ用タイムスタンプ
-                })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestBody)
             });
 
-            if (res.status === 412) {
+            if (res.status === 409) {
                 console.warn('データの競合が検出されました');
                 if (confirm("データの競合が発生しました。他の端末でデータが更新された可能性があります。最新のデータを読み込み直しますか？")) {
                     await loadData();
@@ -205,9 +183,10 @@ async function saveData(tasksToSave = tasks, labelsToSave = labels, isInitialSav
                 throw new Error(`保存失敗: ${res.status} ${res.statusText}`);
             }
 
-            currentBinVersion = res.headers.get('X-Bin-Meta-Version');
+            const result = await res.json();
+            currentDataVersion = result.version;
             console.log('データ保存成功');
-            return; // 成功時は即座に終了
+            return;
 
         } catch (error) {
             retryCount++;
@@ -221,7 +200,6 @@ async function saveData(tasksToSave = tasks, labelsToSave = labels, isInitialSav
                 break;
             }
             
-            // 指数バックオフでリトライ
             await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
         }
     }
@@ -1230,7 +1208,7 @@ function findClosestMatch(query, items, key = 'text') {
 async function handleAiInteraction() {
     const geminiPrompt = document.getElementById('gemini-prompt');
     const promptText = geminiPrompt.value.trim();
-    if (!promptText || !GEMINI_API_KEY) {
+    if (!promptText) {
         alert("プロンプトを入力してください。");
         return;
     }
@@ -1241,46 +1219,23 @@ async function handleAiInteraction() {
     geminiBtn.querySelector('.loading-indicator').style.display = 'flex';
 
     try {
-        const fullPrompt = buildAiPrompt(promptText);
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`, {
+        const response = await fetch(`${WORKER_URL}/api/ai`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] })
+            body: JSON.stringify({ prompt: promptText })
         });
 
-        if (!response.ok) throw new Error(`Gemini APIエラー: ${response.status} ${await response.text()}`);
+        if (!response.ok) {
+            throw new Error(`AI APIエラー: ${response.status}`);
+        }
         
         const data = await response.json();
-        if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-             throw new Error('無効なAPIレスポンスです。');
-        }
         
-        let jsonString = data.candidates[0].content.parts[0].text;
-        // --- 修正版: コードブロックのパース処理 ---
-        let actions = [];
-        // ```json ... ``` もしくは ``` ... ``` のどちらにも対応
-        let jsonMatch = jsonString.match(/```json\s*([\s\S]*?)```/i);
-        if (!jsonMatch) {
-            jsonMatch = jsonString.match(/```\s*([\s\S]*?)```/i);
-        }
-        if (jsonMatch) {
-            try {
-                actions = JSON.parse(jsonMatch[1].trim());
-            } catch (e) {
-                actions = [];
-            }
-        } else {
-            try {
-                actions = JSON.parse(jsonString);
-            } catch (e) {
-                actions = [];
-            }
-        }
-        // ...以降は actions を使う
-        if (actions.length > 0) {
+        if (data.actions && data.actions.length > 0) {
             pushToUndoStack();
-            processAiActions(actions);
-            await saveDataAndRender();
+            tasks = data.tasks;
+            labels = data.labels;
+            renderAll();
             geminiPrompt.value = '';
         } else {
             alert("AIは実行可能なアクションを見つけられませんでした。");
