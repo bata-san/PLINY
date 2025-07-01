@@ -93,11 +93,23 @@ function initializeCalendar() {
         events: [],
         editable: true,
         eventDrop: handleEventDrop,
+        eventResize: handleEventResize,
         eventDurationEditable: true,
         eventStartEditable: true,
         dragScroll: true,
         eventDisplay: 'block',
-        dayMaxEvents: false
+        dayMaxEvents: false,
+        // 期間イベントの移動を適切に処理するための設定
+        selectMirror: true,
+        dayMaxEventRows: false,
+        // 重要: イベントの移動時に期間を保持するための設定
+        eventConstraint: {
+            start: '1900-01-01',
+            end: '2100-12-31'
+        },
+        // ドラッグ中の視覚的フィードバックを改善
+        eventOverlap: true,
+        selectOverlap: true
     });
     
     calendar.render();
@@ -330,14 +342,15 @@ function renderCalendar() {
                 return null;
             }
 
-            // より正確な日付処理
+            // より正確な日付処理 - タイムゾーンの問題を回避
             const startDate = task.startDate;
             const endDate = task.endDate || task.startDate;
             
             // FullCalendarのallDayイベントでは、終了日は排他的（exclusive）
             // つまり、endDateに1日追加する必要がある
             const exclusiveEndDate = new Date(endDate + 'T00:00:00');
-            exclusiveEndDate.setUTCDate(exclusiveEndDate.getUTCDate() + 1);
+            exclusiveEndDate.setDate(exclusiveEndDate.getDate() + 1);
+            const exclusiveEndDateStr = exclusiveEndDate.toISOString().split('T')[0];
 
             const highestPrioLabel = getHighestPriorityLabel(task);
             const eventColor = task.completed ? '#adb5bd' : (highestPrioLabel ? highestPrioLabel.color : '#007aff');
@@ -346,7 +359,7 @@ function renderCalendar() {
                 id: task.id,
                 title: task.text,
                 start: startDate, // YYYY-MM-DD形式のまま
-                end: exclusiveEndDate.toISOString().split('T')[0], // YYYY-MM-DD形式
+                end: exclusiveEndDateStr, // YYYY-MM-DD形式
                 allDay: true,
                 backgroundColor: eventColor,
                 borderColor: eventColor,
@@ -789,11 +802,19 @@ function setupTaskFormEvents() {
 
             pushToUndoStack();
             
+            // 日付をタイムゾーンを考慮して正確に変換
+            const formatDate = (date) => {
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            };
+
             const newTask = normalizeTask({
                 id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                 text,
-                startDate: dates[0].toISOString().split('T')[0],
-                endDate: (dates[1] || dates[0]).toISOString().split('T')[0],
+                startDate: formatDate(dates[0]),
+                endDate: formatDate(dates[1] || dates[0]),
                 labelIds: selectedLabelIds
             });
             
@@ -1025,47 +1046,34 @@ async function handleEventDrop({ event, revert }) {
     try {
         pushToUndoStack();
         
-        // 開始日の計算（UTCタイムゾーンの問題を回避）
-        let newStartDate, newEndDate;
+        // 元のタスクの期間を計算
+        const originalStart = new Date(task.startDate + 'T00:00:00');
+        const originalEnd = new Date(task.endDate + 'T00:00:00');
+        const originalDuration = Math.floor((originalEnd - originalStart) / (1000 * 60 * 60 * 24)); // 日数
         
+        // 新しい開始日を取得（タイムゾーンを考慮）
+        let newStartDate;
         if (event.startStr) {
-            // startStrを使用してより正確な日付を取得
             newStartDate = event.startStr;
         } else {
-            newStartDate = event.start.toISOString().split('T')[0];
+            const startDate = new Date(event.start);
+            newStartDate = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`;
         }
 
-        // 終了日の計算
-        if (event.endStr) {
-            // endStrが存在する場合はそれを使用
-            const endDateFromStr = new Date(event.endStr);
-            endDateFromStr.setDate(endDateFromStr.getDate() - 1); // FullCalendarの排他的終了日を調整
-            newEndDate = endDateFromStr.toISOString().split('T')[0];
-        } else if (event.end) {
-            // event.endを使用する場合
-            const endDate = new Date(event.end);
-            endDate.setDate(endDate.getDate() - 1); // FullCalendarの排他的終了日を調整
-            newEndDate = endDate.toISOString().split('T')[0];
-        } else {
-            // 終了日がない場合は開始日と同じ
-            newEndDate = newStartDate;
-        }
-
-        // 日付の妥当性チェック
-        if (newEndDate < newStartDate) {
-            newEndDate = newStartDate;
-        }
+        // 新しい終了日を計算 - 元の期間を保持
+        const newStart = new Date(newStartDate + 'T00:00:00');
+        const newEnd = new Date(newStart.getTime());
+        newEnd.setDate(newEnd.getDate() + originalDuration);
+        const newEndDate = `${newEnd.getFullYear()}-${String(newEnd.getMonth() + 1).padStart(2, '0')}-${String(newEnd.getDate()).padStart(2, '0')}`;
 
         console.log('日付変更の詳細:', {
             taskId,
             originalStart: task.startDate,
             originalEnd: task.endDate,
-            eventStart: event.start,
-            eventEnd: event.end,
-            eventStartStr: event.startStr,
-            eventEndStr: event.endStr,
-            calculatedStart: newStartDate,
-            calculatedEnd: newEndDate
+            originalDuration: originalDuration,
+            newStartDate: newStartDate,
+            newEndDate: newEndDate,
+            preservedDuration: Math.floor((new Date(newEndDate + 'T00:00:00') - new Date(newStartDate + 'T00:00:00')) / (1000 * 60 * 60 * 24))
         });
 
         task.startDate = newStartDate;
@@ -1079,6 +1087,78 @@ async function handleEventDrop({ event, revert }) {
         console.error('タスクの日程変更中にエラーが発生:', error);
         revert();
         alert('タスクの日程変更に失敗しました。再度お試しください。');
+    }
+}
+
+async function handleEventResize({ event, revert }) {
+    console.log('イベントリサイズ開始:', { 
+        eventId: event.id, 
+        start: event.start, 
+        end: event.end,
+        startString: event.startStr,
+        endString: event.endStr
+    });
+
+    const taskId = event.id;
+    const task = tasks.find(t => t.id.toString() === taskId.toString());
+
+    if (!task) {
+        console.warn(`タスクが見つかりません: ${taskId}`);
+        revert();
+        return;
+    }
+
+    try {
+        pushToUndoStack();
+        
+        // 開始日と終了日の計算（タイムゾーンを考慮）
+        let newStartDate, newEndDate;
+        
+        if (event.startStr) {
+            newStartDate = event.startStr;
+        } else {
+            const startDate = new Date(event.start);
+            newStartDate = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`;
+        }
+
+        if (event.endStr) {
+            // endStrが存在する場合はそれを使用（FullCalendarの排他的終了日を調整）
+            const endDate = new Date(event.endStr + 'T00:00:00');
+            endDate.setDate(endDate.getDate() - 1);
+            newEndDate = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
+        } else if (event.end) {
+            // event.endを使用する場合
+            const endDate = new Date(event.end);
+            endDate.setDate(endDate.getDate() - 1); // FullCalendarの排他的終了日を調整
+            newEndDate = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
+        } else {
+            newEndDate = newStartDate;
+        }
+
+        // 日付の妥当性チェック
+        if (newEndDate < newStartDate) {
+            newEndDate = newStartDate;
+        }
+
+        console.log('リサイズの詳細:', {
+            taskId,
+            originalStart: task.startDate,
+            originalEnd: task.endDate,
+            newStart: newStartDate,
+            newEnd: newEndDate
+        });
+
+        task.startDate = newStartDate;
+        task.endDate = newEndDate;
+
+        await saveDataAndRender();
+        
+        console.log('タスクのリサイズ完了');
+
+    } catch (error) {
+        console.error('タスクのリサイズ中にエラーが発生:', error);
+        revert();
+        alert('タスクのリサイズに失敗しました。再度お試しください。');
     }
 }
 

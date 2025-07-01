@@ -187,15 +187,15 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
     flex-grow: 1;
     display: flex;
     flex-direction: column;
-    min-height: 0; /* flexboxでの高さ制御に必要 */
+    min-height: 0;
 }
 
 #task-list-container { 
     background: var(--bg-pane); 
     border-radius: var(--radius-lg); 
-    overflow-y: auto; /* タスクリストのみスクロール可能 */
+    overflow-y: auto;
     flex-grow: 1;
-    min-height: 0; /* flexboxでの高さ制御に必要 */
+    min-height: 0;
 }
 
 #calendar-view { 
@@ -203,13 +203,14 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
     border-radius: var(--radius-lg); 
     padding: 16px; 
     display: none; 
-    flex-direction: column; /* Use flexbox for layout */
+    flex-direction: column;
     flex-grow: 1;
+    min-height: 0;
 }
 
 #calendar-container {
-    flex-grow: 1; /* Allow container to grow */
-    min-height: 0; /* Prevent overflow issues in flexbox */
+    flex-grow: 1;
+    min-height: 0;
 }
 
 /* iOS-style Task List v2 */
@@ -219,6 +220,11 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
 }
 .task-node::after {
     content: ''; position: absolute; bottom: 0;
+    left: calc(var(--level-indent) + 50px);
+    right: 0; height: 1px; background: var(--border-color);
+}
+.task-node:last-child::after { display: none; }
+.task-card {
     left: calc(var(--level-indent) + 50px);
     right: 0; height: 1px; background: var(--border-color);
 }
@@ -249,6 +255,7 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
     width: 32px; height: 32px;
     display: flex; align-items: center; justify-content: center;
     color: var(--text-secondary); cursor: pointer; border-radius: 50%;
+    margin-left:1rem;
 }
 .task-toggle:hover { color: var(--primary); }
 .task-toggle.hidden { display: none; }

@@ -1,0 +1,9 @@
+name = "pliny-worker"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[env.production.vars]
+MASTER_KEY = "$2a$10$l.shMPQkZut9GF8QmO5kjuUe5EuHpRA4sATqrlfXG.lNjF1n0clg."
+ACCESS_KEY = "$2a$10$h10RX1N2om3YrLjEs313gOKLSH5XN2ov/qECHWf/qoh5ex4Sz3JpG"
+BIN_ID = "685bfb988561e97a502b9056"
+GEMINI_API_KEY = "AIzaSyD4GPZ85iVlKjbmd-j3DKfbPooGpqlaZtM"
