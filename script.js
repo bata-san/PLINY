@@ -197,24 +197,35 @@ function renderTaskList() {
         parent.appendChild(el);
 
         if (hasChildren && !isCollapsed) {
-            node.children.sort((a, b) => new Date(a.startDate) - new Date(b.startDate)).forEach(child => draw(child, parent, level + 1, visited));
+            node.children.sort((a, b) => createLocalDate(a.startDate) - createLocalDate(b.startDate)).forEach(child => draw(child, parent, level + 1, visited));
         }
     }
-    roots.sort((a, b) => new Date(a.startDate) - new Date(b.startDate)).forEach(root => draw(root, container, 1));
+    roots.sort((a, b) => createLocalDate(a.startDate) - createLocalDate(b.startDate)).forEach(root => draw(root, container, 1));
 }
 
 function renderCalendar() {
     if (!calendar) return;
     const events = tasks.map(task => {
         if (!task.startDate) return null;
-        const exclusiveEnd = new Date(task.endDate || task.startDate);
-        exclusiveEnd.setDate(exclusiveEnd.getDate() + 1);
+        
+        // ローカル日付として処理し、FullCalendarの期待する形式に変換
+        const startDate = createLocalDate(task.startDate);
+        const endDate = createLocalDate(task.endDate || task.startDate);
+        
+        // FullCalendarのall-dayイベントでは、終了日は翌日を指定する必要がある
+        const exclusiveEndDate = new Date(endDate);
+        exclusiveEndDate.setDate(exclusiveEndDate.getDate() + 1);
+        
         const highestPrioLabel = getHighestPriorityLabel(task);
         const eventColor = task.completed ? '#adb5bd' : (highestPrioLabel ? highestPrioLabel.color : 'var(--primary)');
         return {
-            id: task.id, title: task.text, start: task.startDate,
-            end: exclusiveEnd.toISOString().split('T')[0], allDay: true,
-            backgroundColor: eventColor, borderColor: eventColor,
+            id: task.id, 
+            title: task.text, 
+            start: getLocalDateString(startDate),
+            end: getLocalDateString(exclusiveEndDate), 
+            allDay: true,
+            backgroundColor: eventColor, 
+            borderColor: eventColor,
             classNames: task.completed ? ['completed-event'] : []
         };
     }).filter(Boolean);
@@ -499,12 +510,49 @@ function closeAllPopovers() {
 // ===============================================
 // ヘルパー関数
 // ===============================================
+
+// 日付処理のユーティリティ関数
+function getLocalDateString(date) {
+    // Dateオブジェクトまたは日付文字列からローカルの日付文字列（YYYY-MM-DD）を取得
+    if (!date) return new Date().toLocaleDateString('sv-SE'); // sv-SE ロケールはYYYY-MM-DD形式
+    
+    if (typeof date === 'string') {
+        // 既にYYYY-MM-DD形式の場合はそのまま返す
+        if (/^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
+        // その他の文字列形式の場合はDateオブジェクトに変換
+        date = new Date(date + 'T00:00:00'); // ローカル時刻として解釈
+    }
+    
+    if (date instanceof Date && !isNaN(date)) {
+        return date.toLocaleDateString('sv-SE');
+    }
+    
+    // フォールバック: 今日の日付
+    return new Date().toLocaleDateString('sv-SE');
+}
+
+function createLocalDate(dateString) {
+    // YYYY-MM-DD形式の文字列からローカル時刻のDateオブジェクトを作成
+    if (!dateString || typeof dateString !== 'string') {
+        return new Date();
+    }
+    
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+        // YYYY-MM-DD形式の場合、ローカル時刻として解釈（T00:00:00を追加）
+        return new Date(dateString + 'T00:00:00');
+    }
+    
+    // その他の形式の場合はそのまま変換を試行
+    return new Date(dateString + 'T00:00:00');
+}
+
 function normalizeTask(task) {
+    const today = getLocalDateString();
     return {
         id: task.id || `id-${Date.now()}-${Math.random()}`,
         text: task.text || '(無題のタスク)',
-        startDate: task.startDate || new Date().toISOString().split('T')[0],
-        endDate: task.endDate || task.startDate || new Date().toISOString().split('T')[0],
+        startDate: getLocalDateString(task.startDate) || today,
+        endDate: getLocalDateString(task.endDate || task.startDate) || today,
         completed: !!task.completed,
         labelIds: Array.isArray(task.labelIds) ? task.labelIds : [],
         parentId: task.parentId || null,
@@ -515,9 +563,9 @@ function normalizeTask(task) {
 function formatDueDate(start, end) {
     if (!start) return '';
     try {
-        const startDate = new Date(start + 'T00:00:00');
+        const startDate = createLocalDate(start);
         if (!end || start === end) return startDate.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' });
-        const endDate = new Date(end + 'T00:00:00');
+        const endDate = createLocalDate(end);
         return `${startDate.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })} → ${endDate.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}`;
     } catch (e) { return start; }
 }
@@ -557,8 +605,8 @@ function bindGlobalEvents() {
         const newTask = normalizeTask({
             id: Date.now().toString(),
             text,
-            startDate: dates[0].toISOString().split('T')[0],
-            endDate: (dates[1] || dates[0]).toISOString().split('T')[0],
+            startDate: getLocalDateString(dates[0]),
+            endDate: getLocalDateString(dates[1] || dates[0]),
             labelIds: selectedLabelIds
         });
         tasks.push(newTask);
@@ -703,9 +751,17 @@ async function handleEventDrop({ event, revert }) {
 
     if (task) {
         pushToUndoStack();
-        const newStartDate = event.start.toISOString().split('T')[0];
-        // FullCalendarのall-dayイベントのendはexclusiveなので、1日引く
-        const newEndDate = event.end ? new Date(event.end.getTime() - 86400000).toISOString().split('T')[0] : newStartDate;
+        
+        // FullCalendarのイベントの日付を安全にローカル日付文字列に変換
+        const newStartDate = getLocalDateString(event.start);
+        
+        // FullCalendarのall-dayイベントのendは翌日を指すため、1日前が実際の終了日
+        let newEndDate = newStartDate;
+        if (event.end) {
+            const endDate = new Date(event.end);
+            endDate.setDate(endDate.getDate() - 1);
+            newEndDate = getLocalDateString(endDate);
+        }
         
         task.startDate = newStartDate;
         task.endDate = newEndDate;
@@ -851,7 +907,7 @@ async function handleAiInteraction() {
 }
 
 function buildAiPrompt(userInput) {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateString();
     const tasksContext = JSON.stringify(tasks.map(t => ({ id: t.id, text: t.text, completed: t.completed, parentId: t.parentId })), null, 2);
     const labelsContext = JSON.stringify(labels.map(l => ({ id: l.id, name: l.name, color: l.color, priority: l.priority })), null, 2);
 
