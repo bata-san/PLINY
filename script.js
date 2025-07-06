@@ -1059,10 +1059,89 @@ function setupAiEvents() {
 }
 
 function setupWindowEvents() {
-    window.addEventListener('resize', () => {
+    // レスポンシブ対応
+    window.addEventListener('resize', handleResize);
+    
+    // 初期化時に実行
+    handleResize();
+    
+    // モバイル向けの最適化
+    if (isMobile()) {
+        setupMobileOptimizations();
+    }
+}
+
+function handleResize() {
+    const isMobileView = window.innerWidth <= 768;
+    
+    // カレンダー表示制御
+    const calendarView = document.getElementById('calendar-view');
+    const listView = document.getElementById('list-view');
+    const viewSwitcher = document.getElementById('view-switcher');
+    
+    if (isMobileView) {
+        // モバイルではリストビューのみ表示
+        if (calendarView) calendarView.style.display = 'none';
+        if (listView) listView.style.display = 'block';
+        if (viewSwitcher) viewSwitcher.style.display = 'none';
+    } else {
+        // デスクトップでは通常の表示
+        if (viewSwitcher) viewSwitcher.style.display = 'flex';
+        
+        // カレンダーがある場合のみ更新
         if (calendar) {
-            calendar.changeView(window.innerWidth < 768 ? 'listWeek' : 'dayGridMonth');
+            calendar.changeView(window.innerWidth < 1024 ? 'listWeek' : 'dayGridMonth');
             calendar.updateSize();
+        }
+    }
+}
+
+function isMobile() {
+    return window.innerWidth <= 768 || /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+}
+
+function setupMobileOptimizations() {
+    // タッチ操作の最適化
+    document.addEventListener('touchstart', function() {}, { passive: true });
+    
+    // アコーディオンの自動折りたたみ（モバイルでは一つずつ開く）
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('.accordion-toggle')) {
+            const clickedAccordion = e.target.closest('.accordion');
+            const allAccordions = document.querySelectorAll('.accordion');
+            
+            // 他のアコーディオンを閉じる
+            allAccordions.forEach(accordion => {
+                if (accordion !== clickedAccordion) {
+                    const toggle = accordion.querySelector('.accordion-toggle');
+                    const content = accordion.querySelector('.accordion-content');
+                    if (toggle && content) {
+                        toggle.classList.remove('active');
+                        content.style.display = 'none';
+                    }
+                }
+            });
+        }
+    });
+    
+    // フォーカス時のスクロール調整
+    const inputs = document.querySelectorAll('input, textarea');
+    inputs.forEach(input => {
+        input.addEventListener('focus', function() {
+            setTimeout(() => {
+                this.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 300);
+        });
+    });
+    
+    // 長いテキストの省略表示
+    const taskItems = document.querySelectorAll('.task-item');
+    taskItems.forEach(item => {
+        const content = item.querySelector('.task-content');
+        if (content && content.textContent.length > 100) {
+            content.style.overflow = 'hidden';
+            content.style.textOverflow = 'ellipsis';
+            content.style.whiteSpace = 'nowrap';
         }
     });
 }
@@ -1075,10 +1154,19 @@ function bindAccordionEvents() {
         newBtn.addEventListener('click', function () { 
             this.classList.toggle('active');
             const content = this.nextElementSibling;
-            if (content.style.display === 'flex') {
+            
+            // スムーズなアニメーション
+            if (content.style.display === 'flex' || content.style.display === 'block') {
                 content.style.display = 'none';
             } else {
                 content.style.display = 'flex';
+                
+                // モバイルでスクロール調整
+                if (isMobile()) {
+                    setTimeout(() => {
+                        this.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 100);
+                }
             }
         });
     });

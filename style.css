@@ -283,6 +283,399 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
     #right-pane { padding: 16px; flex-grow: 1; }
 }
 
+/* ==============================================
+   モバイル・レスポンシブ対応
+   ============================================== */
+
+/* タブレット対応 */
+@media (max-width: 1024px) {
+    #app-container {
+        flex-direction: column;
+    }
+    
+    #left-pane {
+        width: 100%;
+        max-width: none;
+        border-right: none;
+        border-bottom: 1px solid var(--border-color);
+        max-height: 40vh;
+        overflow-y: auto;
+    }
+    
+    #right-pane {
+        flex: 1;
+        min-height: 0;
+    }
+    
+    #right-pane-header {
+        padding: 12px 20px;
+    }
+    
+    #view-switcher {
+        display: none; /* カレンダー非表示 */
+    }
+    
+    #calendar-view {
+        display: none !important;
+    }
+    
+    #list-view {
+        display: block !important;
+    }
+}
+
+/* スマホ対応 */
+@media (max-width: 768px) {
+    html, body {
+        font-size: 14px;
+    }
+    
+    #app-container {
+        flex-direction: column;
+        height: 100vh;
+        height: 100svh; /* Safari対応 */
+    }
+    
+    #left-pane {
+        width: 100%;
+        max-width: none;
+        border-right: none;
+        border-bottom: 1px solid var(--border-color);
+        max-height: 50vh;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    #left-pane header {
+        padding: 12px 16px;
+        position: sticky;
+        top: 0;
+        background: var(--bg-pane);
+        z-index: 10;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    #left-pane h1 {
+        font-size: 18px;
+        margin: 0;
+    }
+    
+    .control-group {
+        margin-bottom: 16px;
+        padding: 0 16px;
+    }
+    
+    .control-group:last-child {
+        margin-bottom: 16px;
+    }
+    
+    /* タスクフォーム */
+    #task-form {
+        gap: 12px;
+    }
+    
+    #task-input {
+        padding: 12px 16px;
+        font-size: 16px; /* ズーム防止 */
+    }
+    
+    #task-due-date {
+        padding: 12px 16px;
+        font-size: 16px;
+    }
+    
+    #task-form button[type="submit"] {
+        padding: 14px 20px;
+        font-size: 16px;
+        font-weight: 600;
+    }
+    
+    /* アコーディオン */
+    .accordion-toggle {
+        padding: 16px 12px;
+        font-size: 15px;
+        touch-action: manipulation;
+    }
+    
+    .accordion-content {
+        padding: 12px;
+    }
+    
+    /* ラベル選択 */
+    .label-select-grid {
+        gap: 8px;
+    }
+    
+    .label-select-item {
+        padding: 10px 12px;
+        font-size: 13px;
+    }
+    
+    /* データ管理 */
+    .data-manager-section h4 {
+        font-size: 13px;
+    }
+    
+    #raw-data-editor {
+        font-size: 11px;
+        min-height: 150px;
+    }
+    
+    #jsonbin-url {
+        padding: 12px 16px;
+        font-size: 16px;
+    }
+    
+    /* 右パネル */
+    #right-pane {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+    }
+    
+    #right-pane-header {
+        padding: 12px 16px;
+        position: sticky;
+        top: 0;
+        background: var(--bg-pane);
+        z-index: 10;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    #right-pane-header h2 {
+        font-size: 16px;
+        margin: 0;
+    }
+    
+    #view-switcher {
+        display: none;
+    }
+    
+    #calendar-view {
+        display: none !important;
+    }
+    
+    #list-view {
+        display: block !important;
+        height: calc(100% - 60px);
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    #task-list-container {
+        padding: 16px;
+    }
+    
+    /* タスクリスト */
+    .task-item {
+        margin-bottom: 12px;
+        padding: 12px;
+        border-radius: var(--radius-md);
+        touch-action: manipulation;
+    }
+    
+    .task-item .task-content {
+        font-size: 15px;
+        line-height: 1.4;
+    }
+    
+    .task-item .task-metadata {
+        margin-top: 8px;
+    }
+    
+    .task-item .task-metadata .task-dates {
+        font-size: 12px;
+    }
+    
+    .task-item .task-actions {
+        margin-top: 8px;
+    }
+    
+    .task-item .task-actions .button {
+        padding: 8px 12px;
+        font-size: 13px;
+        min-height: 32px;
+        touch-action: manipulation;
+    }
+    
+    /* ラベル表示 */
+    .task-labels {
+        margin-top: 8px;
+        gap: 4px;
+    }
+    
+    .task-label {
+        padding: 4px 8px;
+        font-size: 11px;
+        border-radius: 4px;
+    }
+    
+    /* モーダル */
+    .modal-overlay {
+        padding: 16px;
+    }
+    
+    .modal-content {
+        max-width: 100%;
+        margin: 0;
+        border-radius: var(--radius-lg);
+    }
+    
+    .modal-header {
+        padding: 16px;
+    }
+    
+    .modal-header h2 {
+        font-size: 16px;
+    }
+    
+    .modal-body {
+        padding: 0 16px 16px;
+    }
+    
+    .modal-footer {
+        padding: 16px;
+        gap: 8px;
+    }
+    
+    .modal-footer .button {
+        flex: 1;
+        padding: 12px;
+        font-size: 15px;
+    }
+    
+    /* ポップオーバー */
+    .popover {
+        max-width: calc(100vw - 32px);
+        border-radius: var(--radius-md);
+    }
+    
+    /* ボタン全般 */
+    .button {
+        min-height: 44px; /* タッチしやすいサイズ */
+        touch-action: manipulation;
+        font-size: 15px;
+    }
+    
+    .button.secondary {
+        min-height: 40px;
+    }
+    
+    /* テキストエリア */
+    textarea {
+        font-size: 16px; /* ズーム防止 */
+        touch-action: manipulation;
+    }
+    
+    /* 入力フィールド */
+    input[type="text"],
+    input[type="url"] {
+        font-size: 16px; /* ズーム防止 */
+        touch-action: manipulation;
+    }
+    
+    /* スクロール最適化 */
+    #left-pane,
+    #list-view {
+        scroll-behavior: smooth;
+    }
+    
+    /* タッチ操作最適化 */
+    * {
+        -webkit-tap-highlight-color: transparent;
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+    }
+    
+    input, textarea, button {
+        -webkit-user-select: auto;
+        user-select: auto;
+    }
+    
+    /* 安全エリア対応 */
+    #app-container {
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+    
+    #left-pane {
+        padding-top: env(safe-area-inset-top);
+    }
+}
+
+/* 極小画面（iPhone SE など） */
+@media (max-width: 375px) {
+    html, body {
+        font-size: 13px;
+    }
+    
+    #left-pane {
+        max-height: 45vh;
+    }
+    
+    .control-group {
+        margin-bottom: 12px;
+        padding: 0 12px;
+    }
+    
+    #task-form {
+        gap: 10px;
+    }
+    
+    .accordion-toggle {
+        padding: 14px 10px;
+        font-size: 14px;
+    }
+    
+    .accordion-content {
+        padding: 10px;
+    }
+    
+    #task-list-container {
+        padding: 12px;
+    }
+    
+    .task-item {
+        padding: 10px;
+        margin-bottom: 10px;
+    }
+    
+    .task-item .task-content {
+        font-size: 14px;
+    }
+    
+    .task-item .task-actions .button {
+        padding: 6px 10px;
+        font-size: 12px;
+        min-height: 30px;
+    }
+    
+    #raw-data-editor {
+        min-height: 120px;
+        font-size: 10px;
+    }
+}
+
+/* 横向き対応 */
+@media (max-width: 768px) and (orientation: landscape) {
+    #left-pane {
+        max-height: 35vh;
+    }
+    
+    #list-view {
+        height: calc(100% - 50px);
+    }
+    
+    #right-pane-header {
+        padding: 8px 16px;
+    }
+    
+    #right-pane-header h2 {
+        font-size: 15px;
+    }
+}
+
+/* loading spinner */
 .loading-indicator { display: flex; align-items: center; justify-content: center; gap: 8px; }
 .spinner { width: 18px; height: 18px; border: 2px solid rgba(255, 255, 255, 0.3); border-top-color: #fff; border-radius: 50%; animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
