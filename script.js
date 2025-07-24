@@ -26,14 +26,98 @@ let currentDataVersion = null; // バージョン管理用
 // ===============================================
 // 初期化処理
 // ===============================================
+
 document.addEventListener('DOMContentLoaded', () => {
+    // アカウント管理UI初期化
+    initializeAuthUI();
+});
+
+function initializeAuthUI() {
+    const authModal = document.getElementById('auth-modal');
+    const appContainer = document.getElementById('app-container');
+    const authForm = document.getElementById('auth-form');
+    const emailInput = document.getElementById('auth-email');
+    const passwordInput = document.getElementById('auth-password');
+    const loginBtn = document.getElementById('login-btn');
+    const registerBtn = document.getElementById('register-btn');
+    const errorDiv = document.getElementById('auth-error');
+
+    // JWTがあれば自動ログイン
+    const token = localStorage.getItem('pliny_jwt');
+    if (token) {
+        authModal.style.display = 'none';
+        appContainer.style.display = '';
+        initializeApp();
+        return;
+    }
+
+    authForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        errorDiv.style.display = 'none';
+        loginBtn.disabled = true;
+        registerBtn.disabled = true;
+        try {
+            const res = await fetch(`${WORKER_URL}/api/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: emailInput.value, password: passwordInput.value })
+            });
+            const data = await res.json();
+            if (data.success && data.token) {
+                localStorage.setItem('pliny_jwt', data.token);
+                authModal.style.display = 'none';
+                appContainer.style.display = '';
+                initializeApp();
+            } else {
+                errorDiv.textContent = data.error || 'ログイン失敗';
+                errorDiv.style.display = 'block';
+            }
+        } catch (err) {
+            errorDiv.textContent = '通信エラー';
+            errorDiv.style.display = 'block';
+        } finally {
+            loginBtn.disabled = false;
+            registerBtn.disabled = false;
+        }
+    });
+
+    registerBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        errorDiv.style.display = 'none';
+        loginBtn.disabled = true;
+        registerBtn.disabled = true;
+        try {
+            const res = await fetch(`${WORKER_URL}/api/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: emailInput.value, password: passwordInput.value })
+            });
+            const data = await res.json();
+            if (data.success) {
+                errorDiv.textContent = '登録成功！ログインしてください';
+                errorDiv.style.display = 'block';
+            } else {
+                errorDiv.textContent = data.error || '登録失敗';
+                errorDiv.style.display = 'block';
+            }
+        } catch (err) {
+            errorDiv.textContent = '通信エラー';
+            errorDiv.style.display = 'block';
+        } finally {
+            loginBtn.disabled = false;
+            registerBtn.disabled = false;
+        }
+    });
+}
+
+function initializeApp() {
     // flatpickrを確実に初期化
     initializeFlatpickr();
     initializeCalendar();
     initializeIcons();
     bindGlobalEvents();
     loadData();
-});
+}
 
 function initializeFlatpickr() {
     const dueDateInput = document.getElementById('task-due-date');
