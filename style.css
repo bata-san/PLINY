@@ -1,3 +1,72 @@
+/* ===============================================
+   ヘッダーアカウント管理セクション
+   =============================================== */
+.app-header {
+    width: 100%;
+    background: var(--bg-pane);
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 12px 32px 12px 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    min-height: 56px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+.account-section {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+}
+.account-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--primary-light);
+    border-radius: var(--radius-lg);
+    padding: 8px 18px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.account-avatar {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--primary);
+    color: #fff;
+    border-radius: 50%;
+    font-size: 1.2em;
+}
+.account-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 1em;
+}
+.account-email {
+    color: var(--text-secondary);
+    font-size: 0.9em;
+    margin-left: 6px;
+}
+.login-btn {
+    padding: 8px 16px;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: 0.95em;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    transition: background 0.2s;
+}
+.login-btn:hover {
+    background: #0051d5;
+}
 /* --- PLINY REFRESHED: iOS Inspired UI/UX v2 --- */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
@@ -1566,4 +1635,310 @@ style.css
     background: var(--danger);
     color: white;
     border-color: var(--danger);
+}
+
+/* ===============================================
+ * モーダル関連スタイル
+ * =============================================== */
+.auth-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.auth-modal.show {
+    opacity: 1;
+}
+
+.auth-modal-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.auth-modal-content {
+    position: relative;
+    background: white;
+    padding: 2rem;
+    border-radius: 12px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+    width: 90%;
+    max-width: 400px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.auth-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 1rem;
+}
+
+.auth-header h2 {
+    margin: 0;
+    color: #333;
+    font-size: 1.5rem;
+}
+
+.auth-close-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #999;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+.auth-close-btn:hover {
+    background: #f5f5f5;
+    color: #333;
+}
+
+.auth-form .form-group {
+    margin-bottom: 1rem;
+}
+
+.auth-form label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: #333;
+}
+
+.auth-form input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.2s ease;
+    box-sizing: border-box;
+}
+
+.auth-form input:focus {
+    outline: none;
+    border-color: #007aff;
+    box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+}
+
+.auth-submit-btn {
+    width: 100%;
+    padding: 0.75rem;
+    background: #007aff;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.auth-submit-btn:hover {
+    background: #0056b3;
+}
+
+.auth-submit-btn:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+.link-btn {
+    background: none;
+    border: none;
+    color: #007aff;
+    cursor: pointer;
+    text-decoration: underline;
+    font-size: 0.9rem;
+}
+
+.link-btn:hover {
+    color: #0056b3;
+}
+
+/* ===============================================
+ * ユーザー情報表示スタイル
+ * =============================================== */
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: var(--bg-hover);
+    border-radius: var(--radius-md);
+    margin-bottom: 12px;
+}
+
+.user-avatar {
+    width: 40px;
+    height: 40px;
+    background: var(--primary);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.user-details {
+    flex: 1;
+}
+
+.user-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 2px;
+}
+
+.user-email {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+/* ===============================================
+ * 認証ポップアップスタイル
+ * =============================================== */
+.popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    animation: fadeIn 0.3s ease;
+}
+
+.popup-content {
+    background: white;
+    border-radius: var(--radius-lg);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+    width: 90%;
+    max-width: 400px;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: slideIn 0.3s ease;
+}
+
+.popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.popup-header h3 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.popup-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: var(--transition);
+}
+
+.popup-close:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.popup-body {
+    padding: 24px;
+}
+
+.popup-body .form-group {
+    margin-bottom: 20px;
+}
+
+.popup-body label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.popup-body input {
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    font-size: 16px;
+    transition: var(--transition);
+    box-sizing: border-box;
+}
+
+.popup-body input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: var(--shadow-focus);
+}
+
+.form-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 24px;
+}
+
+.form-actions .button {
+    width: 100%;
+    padding: 12px;
+    font-size: 16px;
+    font-weight: 600;
+    text-align: center;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }
