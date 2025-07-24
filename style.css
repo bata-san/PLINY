@@ -41,9 +41,94 @@ html, body {
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* --- ▼ 修正点 1: 水平方向の意図しないスクロールをグローバルで防止 --- */
+    overflow-x: hidden;
 }
 
-#app-container { display: flex; height: 100vh; position: relative; }
+/* --- Authentication UI --- */
+#auth-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: var(--bg-app);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3000;
+}
+
+#auth-container {
+    width: 100%;
+    max-width: 360px;
+    padding: 32px;
+    background-color: var(--bg-pane);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+    text-align: center;
+}
+
+#auth-container h1 {
+    font-size: 1.8em;
+    font-weight: 700;
+    margin-bottom: 24px;
+}
+
+#auth-container form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+#auth-container input[type="email"],
+#auth-container input[type="password"] {
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    font-size: 1em;
+}
+
+#auth-container button {
+    padding: 12px;
+    font-weight: 600;
+}
+
+.auth-switch {
+    margin-top: 16px;
+    font-size: 0.9em;
+    color: var(--text-secondary);
+}
+
+.auth-switch a {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.auth-message {
+    padding: 10px;
+    margin-bottom: 16px;
+    border-radius: var(--radius-md);
+    font-size: 0.9em;
+    display: none; /* Hidden by default */
+}
+.auth-message.error {
+    background-color: #ffebee;
+    color: var(--danger);
+    display: block;
+}
+.auth-message.success {
+    background-color: #e8f5e9;
+    color: var(--success);
+    display: block;
+}
+
+
+#app-container {
+    display: flex;
+    height: 100vh;
+    position: relative;
+    /* --- ▼ 修正点 2: アプリケーションコンテナ自体がはみ出すことを防止 --- */
+    overflow: hidden;
+}
 
 #loading-overlay {
     position: absolute;
@@ -73,18 +158,67 @@ html, body {
 
 #left-pane {
     width: 380px;
+    max-width: 100%;
     background: transparent;
-    display: flex; flex-direction: column;
-    gap: 30px; padding: 24px;
-    overflow-y: auto; flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 24px;
+    overflow-y: auto;
+    flex-shrink: 0;
+
+    /* --- ▼ 修正点: ペインの高さをビューポートに固定 --- */
+    height: 100vh; 
 }
 
 header {
-    display: flex; align-items: center; justify-content: space-between;
+    display: flex; flex-direction: column;
+    gap: 16px;
     padding: 0 8px;
 }
+header .header-main {
+    display: flex; align-items: center; justify-content: space-between;
+}
+
 header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02em; }
-#global-actions { display: flex; gap: 12px; }
+
+#user-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.85em;
+}
+#user-email-display {
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+#logout-btn {
+    width: 36px;
+    height: 36px;
+    background: transparent;
+    color: var(--text-secondary); /* アイコンの色 */
+    border: none;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: var(--transition);
+    padding: 0;
+}
+
+#logout-btn:hover {
+    background-color: var(--bg-hover);
+    color: var(--danger); /* ホバー時に赤色に */
+}
+
+#logout-btn svg {
+    width: 20px;
+    height: 20px;
+}
+
+
+#global-actions { display: flex; gap: 12px; align-self: flex-end; }
 #global-actions button {
     width: 36px; height: 36px;
     background: transparent; color: var(--primary);
@@ -257,8 +391,18 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
 .task-toggle svg { width: 14px; height: 14px; transition: transform 0.2s ease-out; }
 .task-toggle:not(.collapsed) svg { transform: rotate(90deg); }
 
-.task-content-wrapper { min-width: 0; }
-.task-text { font-weight: 500; }
+.task-content-wrapper {
+    min-width: 0;
+    /* --- ▼ 修正点 4: はみ出しの原因となる内部コンテンツをクリップ --- */
+    overflow: hidden;
+}
+.task-text {
+    font-weight: 500;
+    /* --- ▼ 修正点 5: 長いテキストがレイアウトを崩さないように省略表示する --- */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
 .task-meta { display: flex; align-items: center; gap: 10px; font-size: 0.85em; color: var(--text-secondary); margin-top: 3px; }
 .task-labels { display: flex; flex-wrap: wrap; gap: 6px; }
 .task-label-badge {
@@ -416,16 +560,6 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
         font-size: 13px;
     }
     
-    #raw-data-editor {
-        font-size: 11px;
-        min-height: 150px;
-    }
-    
-    #jsonbin-url {
-        padding: 12px 16px;
-        font-size: 16px;
-    }
-    
     /* 右パネル */
     #right-pane {
         flex: 1;
@@ -460,6 +594,8 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
         height: calc(100% - 60px);
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
+        /* --- ▼ 修正点 6: モバイル表示でリストが水平方向にはみ出すのを防ぐ --- */
+        overflow-x: hidden;
     }
     
     #task-list-container {
@@ -467,47 +603,8 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
     }
     
     /* タスクリスト */
-    .task-item {
-        margin-bottom: 12px;
-        padding: 12px;
-        border-radius: var(--radius-md);
-        touch-action: manipulation;
-    }
-    
-    .task-item .task-content {
-        font-size: 15px;
-        line-height: 1.4;
-    }
-    
-    .task-item .task-metadata {
-        margin-top: 8px;
-    }
-    
-    .task-item .task-metadata .task-dates {
-        font-size: 12px;
-    }
-    
-    .task-item .task-actions {
-        margin-top: 8px;
-    }
-    
-    .task-item .task-actions .button {
-        padding: 8px 12px;
-        font-size: 13px;
-        min-height: 32px;
-        touch-action: manipulation;
-    }
-    
-    /* ラベル表示 */
-    .task-labels {
-        margin-top: 8px;
-        gap: 4px;
-    }
-    
-    .task-label {
-        padding: 4px 8px;
-        font-size: 11px;
-        border-radius: 4px;
+    .task-node {
+      padding: 10px 0;
     }
     
     /* モーダル */
@@ -545,19 +642,63 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
     }
     
     /* ポップオーバー */
-    .popover {
-        max-width: calc(100vw - 32px);
-        border-radius: var(--radius-md);
-    }
+   .popover {
+    position: absolute;
+    background: var(--bg-pane);
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    border: 1px solid var(--border-color);
+    z-index: 1000;
+    display: none; /* Hidden by default */
+    padding: 8px;
+
+    /* --- ▼ 修正点: はみ出し防止設定 --- */
+    max-width: calc(100vw - 32px);   /* (1) ビューポート幅から左右16pxずつのマージンを引いた値を最大幅にする */
+    max-height: calc(100vh - 32px);  /* (2) ビューポート高から上下16pxずつのマージンを引いた値を最大高にする */
+    overflow-y: auto;                 /* (3) コンテンツが最大高を超えた場合にスクロールさせる */
+}
+
+.color-palette {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+}
+
+.color-box {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: var(--transition);
+}
+.color-box:hover {
+    transform: scale(1.1);
+}
+.color-box.selected {
+    border-color: var(--primary);
+}
+
+.label-select-popover {
+    padding: 12px;
+    width: 280px;
+    /* widthは280pxを維持しつつ、.popoverのmax-width指定によって画面幅が狭い場合は自動で縮小される */
+}
+
+.label-select-popover h3 {
+    margin: 0 0 12px 0;
+    font-size: 1em;
+    font-weight: 600;
+}
     
     /* ボタン全般 */
-    .button {
+    button {
         min-height: 44px; /* タッチしやすいサイズ */
         touch-action: manipulation;
         font-size: 15px;
     }
     
-    .button.secondary {
+    button.secondary {
         min-height: 40px;
     }
     
@@ -569,7 +710,9 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
     
     /* 入力フィールド */
     input[type="text"],
-    input[type="url"] {
+    input[type="url"],
+    input[type="email"],
+    input[type="password"] {
         font-size: 16px; /* ズーム防止 */
         touch-action: manipulation;
     }
@@ -608,6 +751,10 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
     html, body {
         font-size: 13px;
     }
+
+    #auth-container {
+        padding: 24px;
+    }
     
     #left-pane {
         max-height: 45vh;
@@ -633,26 +780,6 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
     
     #task-list-container {
         padding: 12px;
-    }
-    
-    .task-item {
-        padding: 10px;
-        margin-bottom: 10px;
-    }
-    
-    .task-item .task-content {
-        font-size: 14px;
-    }
-    
-    .task-item .task-actions .button {
-        padding: 6px 10px;
-        font-size: 12px;
-        min-height: 30px;
-    }
-    
-    #raw-data-editor {
-        min-height: 120px;
-        font-size: 10px;
     }
 }
 
@@ -879,7 +1006,7 @@ input, textarea, select, button {
     font-size: 1em;
 }
 
-input[type="text"], textarea {
+input[type="text"], textarea, input[type="file"] {
     width: 100%;
     padding: 10px;
     border: 1px solid var(--border-color);
@@ -993,13 +1120,15 @@ button:disabled {
 
 /* データ管理セクション */
 .data-manager-section {
-    margin: 16px 0;
-    padding-bottom: 16px;
-    border-bottom: 1px solid var(--border-color);
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-color);
 }
 
-.data-manager-section:last-child {
-    border-bottom: none;
+.data-manager-section:first-child {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
 }
 
 .data-manager-section h4 {
@@ -1009,52 +1138,9 @@ button:disabled {
     color: var(--text-secondary);
 }
 
-#raw-data-editor {
-    width: 100%;
-    min-height: 200px;
-    margin: 8px 0;
-    padding: 12px;
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    background: var(--bg-pane);
-    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-    font-size: 12px;
-    line-height: 1.4;
-    resize: vertical;
-    transition: var(--transition);
-}
-
-#raw-data-editor:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: var(--shadow-focus);
-}
-
-#raw-data-buttons {
-    display: flex;
-    gap: 8px;
-    margin-top: 8px;
-}
-
-#raw-data-buttons .button {
-    flex: 1;
-}
-
-#jsonbin-url {
-    width: 100%;
-    margin: 8px 0;
-    padding: 10px 12px;
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    background: var(--bg-pane);
+#import-json-file {
     font-size: 14px;
-    transition: var(--transition);
-}
-
-#jsonbin-url:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: var(--shadow-focus);
+    margin-bottom: 8px;
 }
 
 .data-manager-section label {
@@ -1071,20 +1157,3 @@ button:disabled {
     height: 16px;
     accent-color: var(--primary);
 }
-
-/* 変更点ツリー（履歴の可視化）:
-   - #loading-overlay のスタイルは変更なし
-   - .modal-overlay, .modal-content, .modal-header, .modal-body, .modal-footer も変更なし
-   - 直近の変更はありません（前回までの修正はJS側のみ）
-   - もし履歴ツリーをCSSで表現したい場合は、下記のようなコメントで差分を示します
-*/
-
-/*
-履歴ツリー例:
-style.css
-└─ #loading-overlay
-   ├─ position: absolute;（変更なし）
-   ├─ display: flex;（変更なし）
-   └─ ...（他のプロパティも変更なし）
-└─ .modal-overlay, .modal-content, ...（変更なし）
-*/

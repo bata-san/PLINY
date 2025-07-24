@@ -2,9 +2,14 @@ name = "pliny-worker"
 main = "worker.js"
 compatibility_date = "2024-01-01"
 
+# ↓↓↓ データの保管場所の設定（これはあなたの設定のままです） ↓↓↓
 [[kv_namespaces]]
 binding = "PLINY_KV"
 id = "dabbf2c6980d4a428b08727ca82b5e41"
 
+# ↓↓↓ 認証機能に必要な「秘密の合言葉」を追加（これが最も重要です） ↓↓↓
 [vars]
-GEMINI_API_KEY = "AIzaSyD4GPZ85iVlKjbmd-j3DKfbPooGpqlaZtM"
+JWT_SECRET = "jyugemujyugemugogounosurikire"
+
+# GEMINI_API_KEY はセキュリティのため、一旦削除しました。
+# 本番で使う場合は、後述の `wrangler secret` コマンドで安全に設定します。

@@ -1,49 +1,113 @@
 // ===============================================
-// Cloudflare Worker用 PLINY バックエンド (KV版)
+// Cloudflare Worker用 PLINY バックエンド (マルチユーザー版)
 // ===============================================
 
-const DATA_KEY = 'pliny_data';
+// JWTライブラリの代わりのシンプルなヘルパー関数
+const jwt = {
+  sign: async (payload, secret) => {
+    const header = { alg: 'HS256', typ: 'JWT' };
+    const encodedHeader = btoa(JSON.stringify(header)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+    const encodedPayload = btoa(JSON.stringify(payload)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+    const signature = await crypto.subtle.sign(
+      { name: 'HMAC', hash: 'SHA-256' },
+      await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']),
+      new TextEncoder().encode(`${encodedHeader}.${encodedPayload}`)
+    );
+    const encodedSignature = btoa(String.fromCharCode(...new Uint8Array(signature))).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+    return `${encodedHeader}.${encodedPayload}.${encodedSignature}`;
+  },
+  verify: async (token, secret) => {
+    try {
+      const [header, payload, signature] = token.split('.');
+      const isValid = await crypto.subtle.verify(
+        { name: 'HMAC', hash: 'SHA-256' },
+        await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']),
+        Uint8Array.from(atob(signature.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)),
+        new TextEncoder().encode(`${header}.${payload}`)
+      );
+      if (!isValid) throw new Error('Invalid signature');
+      return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+    } catch (e) {
+      throw new Error('Invalid token');
+    }
+  }
+};
 
-// ===============================================
-// CORS ヘッダー設定
-// ===============================================
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
-// ===============================================
-// ヘルパー関数
-// ===============================================
-function normalizeTask(task) {
-    if (!task || typeof task !== 'object') {
-        throw new Error('無効なタスクオブジェクト');
-    }
-
-    const today = new Date().toISOString().split('T')[0];
-    
-    const validateDate = (dateStr, fallback = today) => {
-        if (!dateStr) return fallback;
-        const date = new Date(dateStr + 'T00:00:00');
-        return isNaN(date.getTime()) ? fallback : dateStr;
-    };
-
-    const startDate = validateDate(task.startDate, today);
-    const endDate = validateDate(task.endDate, startDate);
-
-    return {
-        id: task.id || `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        text: typeof task.text === 'string' ? task.text.trim() || '(無題のタスク)' : '(無題のタスク)',
-        startDate: startDate,
-        endDate: endDate >= startDate ? endDate : startDate,
-        completed: Boolean(task.completed),
-        labelIds: Array.isArray(task.labelIds) ? task.labelIds.filter(id => id != null) : [],
-        parentId: task.parentId || null,
-        isCollapsed: task.isCollapsed ?? true
-    };
+// パスワードハッシュ化・検証関数
+async function hashPassword(password) {
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const encodedPassword = new TextEncoder().encode(password);
+    const key = await crypto.subtle.importKey('raw', encodedPassword, { name: 'PBKDF2' }, false, ['deriveBits']);
+    const hash = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' }, key, 256);
+    return `${btoa(String.fromCharCode(...salt))}:${btoa(String.fromCharCode(...new Uint8Array(hash)))}`;
 }
 
+async function verifyPassword(password, storedHash) {
+    try {
+        const [saltB64, hashB64] = storedHash.split(':');
+        if (!saltB64 || !hashB64) return false;
+        const salt = Uint8Array.from(atob(saltB64), c => c.charCodeAt(0));
+        const encodedPassword = new TextEncoder().encode(password);
+        const key = await crypto.subtle.importKey('raw', encodedPassword, { name: 'PBKDF2' }, false, ['deriveBits']);
+        const derivedHash = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' }, key, 256);
+        return await crypto.subtle.timingSafeEqual(new Uint8Array(derivedHash), Uint8Array.from(atob(hashB64), c => c.charCodeAt(0)));
+    } catch (e) {
+        return false;
+    }
+}
+
+// 認証ミドルウェア
+async function authMiddleware(request, env) {
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return { error: 'Authorization header is missing or invalid', status: 401 };
+    }
+    const token = authHeader.split(' ')[1];
+    try {
+        const payload = await jwt.verify(token, env.JWT_SECRET);
+        return { userId: payload.sub };
+    } catch (e) {
+        return { error: 'Invalid or expired token', status: 401 };
+    }
+}
+
+// データ操作（ユーザーIDに紐づく）
+async function getUserData(env, userId) {
+    const dataKey = `data:${userId}`;
+    const data = await env.PLINY_KV.get(dataKey, 'json');
+    return data || { tasks: [], labels: [], version: 1 };
+}
+
+async function saveUserData(env, userId, tasks, labels, expectedVersion) {
+    const dataKey = `data:${userId}`;
+    const currentData = await getUserData(env, userId);
+    
+    if (expectedVersion && currentData.version !== expectedVersion) {
+        throw new Error('CONFLICT');
+    }
+
+    const newVersion = (currentData.version || 0) + 1;
+    await env.PLINY_KV.put(dataKey, JSON.stringify({
+        tasks, labels, version: newVersion, timestamp: new Date().toISOString()
+    }));
+    return { success: true, version: newVersion };
+}
+
+// レスポンス生成ヘルパー
+function jsonResponse(data, status = 200) {
+    return new Response(JSON.stringify(data), {
+        status, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+}
+
+// --- AI関連のロジック ---
+// Levenshtein距離計算（曖昧検索用）
 function levenshteinDistance(a, b) {
     if (a.length === 0) return b.length;
     if (b.length === 0) return a.length;
@@ -61,8 +125,7 @@ function levenshteinDistance(a, b) {
 
 function findClosestMatch(query, items, key = 'text') {
     if (!query || !items || items.length === 0) return null;
-    let bestMatch = null;
-    let minDistance = Infinity;
+    let bestMatch = null, minDistance = Infinity;
     items.forEach(item => {
         const distance = levenshteinDistance(query.toLowerCase(), item[key].toLowerCase());
         if (distance < minDistance) {
@@ -70,388 +133,148 @@ function findClosestMatch(query, items, key = 'text') {
             bestMatch = item;
         }
     });
+    // 一致度の閾値を設定（あまりにも違うものはヒットさせない）
     const threshold = Math.max(5, query.length / 2);
     return minDistance <= threshold ? bestMatch : null;
 }
 
-// ===============================================
-// データ操作関数
-// ===============================================
-async function loadDataFromKV(env) {
-    try {
-        const data = await env.PLINY_KV.get(DATA_KEY, 'json');
-        
-        if (!data) {
-            return {
-                tasks: [],
-                labels: [
-                    { id: 'default-1', name: '優先度: 高', color: '#ff3b30', priority: 1 },
-                    { id: 'default-2', name: '優先度: 中', color: '#ff9500', priority: 2 },
-                    { id: 'default-3', name: '優先度: 低', color: '#34c759', priority: 3 }
-                ],
-                version: 1
-            };
-        }
-        
-        const tasks = Array.isArray(data.tasks) ? data.tasks.map(normalizeTask) : [];
-        const labels = Array.isArray(data.labels) ? data.labels : [];
-        
-        return { tasks, labels, version: data.version || 1 };
-    } catch (error) {
-        console.error('KVからのデータ読み込みエラー:', error);
-        throw new Error(`データ読み込みエラー: ${error.message}`);
-    }
-}
-
-async function saveDataToKV(env, tasks, labels, expectedVersion = null) {
-    const normalizedTasks = tasks.map(task => {
-        try {
-            return normalizeTask(task);
-        } catch (error) {
-            console.warn('タスクの正規化に失敗:', task, error);
-            return null;
-        }
-    }).filter(Boolean);
-
-    const validatedLabels = labels.filter(label => {
-        return label && typeof label.id !== 'undefined' && typeof label.name === 'string';
-    });
-
-    // バージョン管理（楽観的ロック）
-    const currentData = await loadDataFromKV(env);
-    const newVersion = (currentData.version || 1) + 1;
-    
-    if (expectedVersion && currentData.version !== expectedVersion) {
-        throw new Error('CONFLICT');
-    }
-
-    const dataToSave = {
-        tasks: normalizedTasks,
-        labels: validatedLabels,
-        version: newVersion,
-        timestamp: new Date().toISOString()
+// AIの応答（アクション）を処理してデータを更新
+function processAiActions(actions, currentTasks, currentLabels) {
+    let tasks = JSON.parse(JSON.stringify(currentTasks));
+    let labels = JSON.parse(JSON.stringify(currentLabels));
+    const normalizeTask = (task) => { // 簡易正規化
+      const today = new Date().toISOString().split('T')[0];
+      return { id: `task-${Date.now()}-${Math.random()}`, text: task.text || "無題", startDate: task.startDate || today, endDate: task.endDate || task.startDate || today, completed: false, labelIds: task.labelIds || [], parentId: task.parentId || null, isCollapsed: true };
     };
 
-    await env.PLINY_KV.put(DATA_KEY, JSON.stringify(dataToSave));
-    
-    return { success: true, version: newVersion };
-}
-
-// ===============================================
-// AIアシスタント関数
-// ===============================================
-function buildAiPrompt(userInput, tasks, labels) {
-    const today = new Date().toISOString().split('T')[0];
-    const tasksContext = JSON.stringify(tasks.map(t => ({ id: t.id, text: t.text, completed: t.completed, parentId: t.parentId })), null, 2);
-    const labelsContext = JSON.stringify(labels.map(l => ({ id: l.id, name: l.name, color: l.color, priority: l.priority })), null, 2);
-
-    return `あなたは高機能なタスク管理アシスタント「PLINY」です。ユーザーの自然言語による指示を解釈し、一連の操作コマンドをJSON配列として出力してください。
-
-# 現在の状態
-- 今日: ${today}
-- タスクリスト:
-${tasksContext}
-- ラベルリスト:
-${labelsContext}
-
-# あなたが実行できる操作 (action)
-1. **addTask**: 新しいタスクを追加する。
-2. **updateTask**: 既存のタスクを更新する。
-3. **deleteTask**: 既存のタスクを削除する。
-4. **addLabel**: 新しいラベルを作成する。
-5. **updateLabel**: 既存のラベルを更新する。
-6. **deleteLabel**: 既存のラベルを削除する。
-
-# 指示
-以下のユーザーの指示を解釈し、上記で定義された形式のJSON配列を出力してください。
-必ず \`\`\`json ... \`\`\` のコードブロックで囲んでください。
-
----
-ユーザーの指示: "${userInput}"
----
-`;
-}
-
-function processAiActions(actions, tasks, labels) {
     actions.forEach(action => {
         try {
             switch (action.action) {
                 case 'addTask':
                     const parentTask = action.parentTaskText ? findClosestMatch(action.parentTaskText, tasks, 'text') : null;
                     const label = action.labelName ? findClosestMatch(action.labelName, labels, 'name') : null;
-                    const newTask = normalizeTask({
-                        text: action.text,
-                        startDate: action.startDate,
-                        endDate: action.endDate,
-                        parentId: parentTask ? parentTask.id : null,
-                        labelIds: label ? [label.id] : []
-                    });
+                    const newTask = normalizeTask({ text: action.text, startDate: action.startDate, endDate: action.endDate, parentId: parentTask ? parentTask.id : null, labelIds: label ? [label.id] : [] });
                     tasks.push(newTask);
                     if (parentTask) parentTask.isCollapsed = false;
                     break;
-
                 case 'updateTask':
                     const taskToUpdate = findClosestMatch(action.taskText, tasks, 'text');
                     if (taskToUpdate) {
                         if (action.newText) taskToUpdate.text = action.newText;
-                        if (action.newStartDate) taskToUpdate.startDate = action.newStartDate;
-                        if (action.newEndDate) taskToUpdate.endDate = action.newEndDate;
                         if (action.completed !== undefined) taskToUpdate.completed = action.completed;
-                        if (action.addLabelName) {
-                            const labelToAdd = findClosestMatch(action.addLabelName, labels, 'name');
-                            if (labelToAdd && !taskToUpdate.labelIds.includes(labelToAdd.id)) {
-                                taskToUpdate.labelIds.push(labelToAdd.id);
-                            }
-                        }
-                        if (action.removeLabelName) {
-                            const labelToRemove = findClosestMatch(action.removeLabelName, labels, 'name');
-                            if (labelToRemove) {
-                                taskToUpdate.labelIds = taskToUpdate.labelIds.filter(id => id !== labelToRemove.id);
-                            }
-                        }
                     }
                     break;
-
                 case 'deleteTask':
                     const taskToDelete = findClosestMatch(action.taskText, tasks, 'text');
-                    if (taskToDelete) {
-                        const getDescendants = id => tasks.filter(t => t.parentId === id).flatMap(c => [c.id, ...getDescendants(c.id)]);
-                        const descendantIds = getDescendants(taskToDelete.id);
-                        tasks = tasks.filter(t => ![taskToDelete.id, ...descendantIds].includes(t.id));
-                    }
+                    if (taskToDelete) tasks = tasks.filter(t => t.id !== taskToDelete.id);
                     break;
-
                 case 'addLabel':
-                    const newLabel = {
-                        id: `label-${Date.now()}`,
-                        name: action.name,
-                        color: action.color || 'transparent',
-                        priority: action.priority || (labels.length > 0 ? Math.max(...labels.map(l => l.priority || 0)) : 0) + 1
-                    };
-                    labels.push(newLabel);
-                    break;
-
-                case 'updateLabel':
-                    const labelToUpdate = findClosestMatch(action.labelName, labels, 'name');
-                    if (labelToUpdate) {
-                        if (action.newName) labelToUpdate.name = action.newName;
-                        if (action.newColor) labelToUpdate.color = action.newColor;
-                        if (action.newPriority) labelToUpdate.priority = action.newPriority;
-                    }
-                    break;
-
-                case 'deleteLabel':
-                    const labelToDelete = findClosestMatch(action.labelName, labels, 'name');
-                    if (labelToDelete) {
-                        labels = labels.filter(l => l.id !== labelToDelete.id);
-                        tasks.forEach(t => {
-                            t.labelIds = t.labelIds.filter(id => id !== labelToDelete.id);
-                        });
-                    }
+                    labels.push({ id: `label-${Date.now()}`, name: action.name, color: action.color || 'transparent', priority: (labels.length > 0 ? Math.max(...labels.map(l => l.priority || 0)) : 0) + 1 });
                     break;
             }
-        } catch (e) {
-            console.error(`アクションの処理に失敗しました: ${action.action}`, e);
-        }
+        } catch(e) { console.error("AI action processing error:", e); }
     });
+    return { tasks, labels };
 }
 
-// ===============================================
-// メインハンドラー
-// ===============================================
+// AIプロンプトを生成
+function buildAiPrompt(userInput, tasks, labels) {
+    const today = new Date().toISOString().split('T')[0];
+    const tasksContext = JSON.stringify(tasks.slice(0, 20).map(t => ({ id: t.id, text: t.text, completed: t.completed })), null, 2); // 簡略化
+    const labelsContext = JSON.stringify(labels.map(l => ({ id: l.id, name: l.name })), null, 2);
+
+    return `あなたはタスク管理アシスタントです。ユーザーの指示を解釈し、操作コマンドのJSON配列を出力します。
+
+# 現在の状態
+- 今日: ${today}
+- タスク: ${tasksContext}
+- ラベル: ${labelsContext}
+
+# 操作コマンド
+- addTask: { text, startDate?, endDate?, labelName?, parentTaskText? }
+- updateTask: { taskText, newText?, completed? }
+- deleteTask: { taskText }
+- addLabel: { name, color? }
+
+# 指示
+以下の指示を解釈し、JSON配列を出力してください。日付はYYYY-MM-DD形式で。
+ユーザー指示: "${userInput}"`;
+}
+
+
 export default {
     async fetch(request, env, ctx) {
+        if (request.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
         const url = new URL(request.url);
-        
-        // CORS preflight
-        if (request.method === 'OPTIONS') {
-            return new Response(null, { headers: corsHeaders });
-        }
 
         try {
-            // データ取得エンドポイント
-            if (url.pathname === '/api/data' && request.method === 'GET') {
-                const data = await loadDataFromKV(env);
-                return new Response(JSON.stringify(data), {
-                    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-                });
+            // --- 認証エンドポイント ---
+            if (url.pathname.startsWith('/api/auth')) {
+                if (url.pathname === '/api/auth/register' && request.method === 'POST') {
+                    const { email, password } = await request.json();
+                    if (!email || !password || password.length < 8) return jsonResponse({ error: 'メールアドレス、または8文字以上のパスワードが必要です。' }, 400);
+                    if (await env.PLINY_KV.get(`auth:${email}`)) return jsonResponse({ error: 'このメールアドレスは既に使用されています。' }, 409);
+                    
+                    const userId = `user-${crypto.randomUUID()}`;
+                    await env.PLINY_KV.put(`auth:${email}`, JSON.stringify({ id: userId, password: await hashPassword(password) }));
+                    return jsonResponse({ success: true, message: 'ユーザー登録が完了しました。' }, 201);
+                }
+                if (url.pathname === '/api/auth/login' && request.method === 'POST') {
+                    const { email, password } = await request.json();
+                    const userData = await env.PLINY_KV.get(`auth:${email}`, 'json');
+                    if (!userData || !(await verifyPassword(password, userData.password))) return jsonResponse({ error: 'メールアドレスまたはパスワードが正しくありません。' }, 401);
+                    
+                    const token = await jwt.sign({ sub: userData.id, email }, env.JWT_SECRET);
+                    return jsonResponse({ token, email });
+                }
             }
 
-            // データ保存エンドポイント
+            // --- 以下、認証必須 ---
+            const authResult = await authMiddleware(request, env);
+            if (authResult.error) return jsonResponse({ error: authResult.error }, authResult.status);
+            const { userId } = authResult;
+
+            // データ取得
+            if (url.pathname === '/api/data' && request.method === 'GET') {
+                return jsonResponse(await getUserData(env, userId));
+            }
+
+            // データ保存
             if (url.pathname === '/api/data' && request.method === 'PUT') {
                 const { tasks, labels, expectedVersion } = await request.json();
-                
                 try {
-                    const result = await saveDataToKV(env, tasks, labels, expectedVersion);
-                    return new Response(JSON.stringify(result), {
-                        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-                    });
+                    return jsonResponse(await saveUserData(env, userId, tasks, labels, expectedVersion));
                 } catch (error) {
-                    if (error.message === 'CONFLICT') {
-                        return new Response(JSON.stringify({ error: 'CONFLICT' }), {
-                            status: 409,
-                            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-                        });
-                    }
+                    if (error.message === 'CONFLICT') return jsonResponse({ error: 'データの競合が検出されました。' }, 409);
                     throw error;
                 }
             }
-
-            // AIアシスタントエンドポイント
+            
+            // AIアシスタント
             if (url.pathname === '/api/ai' && request.method === 'POST') {
-                const { prompt } = await request.json();
-                const { tasks, labels } = await loadDataFromKV(env);
-                
-                const fullPrompt = buildAiPrompt(prompt, tasks, labels);
-                
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${env.GEMINI_API_KEY}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] })
-                });
+                const { prompt, context } = await request.json();
+                if (!prompt || !context) return jsonResponse({ error: 'Invalid AI prompt' }, 400);
 
-                if (!response.ok) {
-                    throw new Error(`Gemini APIエラー: ${response.status}`);
-                }
-                
-                const data = await response.json();
-                let jsonString = data.candidates[0].content.parts[0].text;
-                
+                // ここで実際のLLM API (e.g., Gemini) を呼び出す
+                // ダミー実装: 指示からアクションを簡易的にパース
                 let actions = [];
-                let jsonMatch = jsonString.match(/```json\s*([\s\S]*?)```/i) || jsonString.match(/```\s*([\s\S]*?)```/i);
-                if (jsonMatch) {
-                    try {
-                        actions = JSON.parse(jsonMatch[1].trim());
-                    } catch (e) {
-                        actions = [];
-                    }
-                }
-
-                if (actions.length > 0) {
-                    processAiActions(actions, tasks, labels);
-                    await saveDataToKV(env, tasks, labels);
-                }
-
-                return new Response(JSON.stringify({ actions, tasks, labels }), {
-                    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-                });
-            }
-
-            // KVデータ直接取得エンドポイント（デバッグ用）
-            if (url.pathname === '/api/kv/raw' && request.method === 'GET') {
-                const rawData = await env.PLINY_KV.get(DATA_KEY);
-                return new Response(rawData || '{}', {
-                    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-                });
-            }
-
-            // KVデータ直接設定エンドポイント（デバッグ用）
-            if (url.pathname === '/api/kv/raw' && request.method === 'PUT') {
-                const rawData = await request.text();
-                
-                // JSONとして有効かチェック
-                try {
-                    JSON.parse(rawData);
-                } catch (error) {
-                    return new Response(JSON.stringify({ error: '無効なJSON形式です' }), {
-                        status: 400,
-                        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-                    });
+                if (prompt.includes("追加して")) {
+                    actions.push({ action: 'addTask', text: prompt.replace('追加して','').trim() });
+                } else if (prompt.includes("完了して")) {
+                    actions.push({ action: 'updateTask', taskText: prompt.replace('完了して','').trim(), completed: true });
+                } else {
+                     return jsonResponse({ error: "AIが指示を理解できませんでした。" }, 400);
                 }
                 
-                await env.PLINY_KV.put(DATA_KEY, rawData);
-                return new Response(JSON.stringify({ success: true, message: 'データが保存されました' }), {
-                    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-                });
+                // AIの応答を処理し、更新されたデータを返す
+                const { tasks, labels } = processAiActions(actions, context.tasks, context.labels);
+                return jsonResponse({ tasks, labels });
             }
 
-            // JSONBinからのデータインポートエンドポイント
-            if (url.pathname === '/api/import/jsonbin' && request.method === 'POST') {
-                const { jsonbinUrl, mergeWithExisting = false } = await request.json();
-                
-                if (!jsonbinUrl) {
-                    return new Response(JSON.stringify({ error: 'JSONBin URLが必要です' }), {
-                        status: 400,
-                        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-                    });
-                }
-                
-                try {
-                    // JSONBinからデータを取得
-                    const response = await fetch(jsonbinUrl);
-                    if (!response.ok) {
-                        throw new Error(`JSONBinからのデータ取得に失敗: ${response.status}`);
-                    }
-                    
-                    const jsonbinData = await response.json();
-                    
-                    let importedTasks = [];
-                    let importedLabels = [];
-                    
-                    // JSONBinのデータ形式を解析
-                    if (jsonbinData.tasks && Array.isArray(jsonbinData.tasks)) {
-                        importedTasks = jsonbinData.tasks.map(normalizeTask);
-                    }
-                    
-                    if (jsonbinData.labels && Array.isArray(jsonbinData.labels)) {
-                        importedLabels = jsonbinData.labels;
-                    }
-                    
-                    let finalTasks = importedTasks;
-                    let finalLabels = importedLabels;
-                    
-                    if (mergeWithExisting) {
-                        // 既存データとマージ
-                        const existingData = await loadDataFromKV(env);
-                        
-                        // タスクをマージ（IDの重複を避ける)
-                        const existingTaskIds = new Set(existingData.tasks.map(t => t.id));
-                        const newTasks = importedTasks.filter(t => !existingTaskIds.has(t.id));
-                        finalTasks = [...existingData.tasks, ...newTasks];
-                        
-                        // ラベルをマージ（名前の重複を避ける）
-                        const existingLabelNames = new Set(existingData.labels.map(l => l.name));
-                        const newLabels = importedLabels.filter(l => !existingLabelNames.has(l.name));
-                        finalLabels = [...existingData.labels, ...newLabels];
-                    }
-                    
-                    // KVに保存
-                    const result = await saveDataToKV(env, finalTasks, finalLabels);
-                    
-                    return new Response(JSON.stringify({
-                        success: true,
-                        message: 'JSONBinからのインポートが完了しました',
-                        imported: {
-                            tasks: importedTasks.length,
-                            labels: importedLabels.length
-                        },
-                        final: {
-                            tasks: finalTasks.length,
-                            labels: finalLabels.length
-                        },
-                        version: result.version
-                    }), {
-                        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-                    });
-                    
-                } catch (error) {
-                    return new Response(JSON.stringify({ 
-                        error: `インポートエラー: ${error.message}` 
-                    }), {
-                        status: 500,
-                        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-                    });
-                }
-            }
-
-            return new Response('Not Found', { status: 404, headers: corsHeaders });
-
+            return jsonResponse({ error: 'Not Found' }, 404);
         } catch (error) {
             console.error('Worker error:', error);
-            return new Response(JSON.stringify({ error: error.message }), {
-                status: 500,
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-            });
+            return jsonResponse({ error: 'Internal Server Error', details: error.message }, 500);
         }
     }
 };

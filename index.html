@@ -14,8 +14,31 @@
 
 </head>
 <body>
+    <!-- 認証オーバーレイ -->
+    <div id="auth-overlay">
+        <div id="auth-container">
+            <h1>PLINYへようこそ</h1>
+            <p id="auth-message-area" class="auth-message"></p>
+            
+            <!-- ログインフォーム -->
+            <form id="login-form" method="POST">
+                <input type="email" id="login-email" name="email" autocomplete="email" placeholder="メールアドレス" required>
+                <input type="password" id="login-password" name="password" autocomplete="current-password" placeholder="パスワード" required>
+                <button type="submit">ログイン</button>
+                <p class="auth-switch">アカウントをお持ちでないですか？ <a href="#" id="show-register-form">新規登録</a></p>
+            </form>
 
-    <div id="app-container">
+            <!-- 新規登録フォーム -->
+            <form id="register-form" method="POST" style="display: none;">
+                <input type="email" id="register-email" name="email" autocomplete="email" placeholder="メールアドレス" required>
+                <input type="password" id="register-password" name="new-password" autocomplete="new-password" placeholder="パスワード (8文字以上)" required>
+                <button type="submit">登録する</button>
+                <p class="auth-switch">既にアカウントをお持ちですか？ <a href="#" id="show-login-form">ログイン</a></p>
+            </form>
+        </div>
+    </div>
+
+    <div id="app-container" style="display: none;">
         <div id="loading-overlay" style="display: none;">
             <div class="spinner"></div>
             <span>読み込み中...</span>
@@ -23,7 +46,19 @@
         <!-- Left Pane: Controls -->
         <div id="left-pane">
             <header>
-                <h1>PLINY</h1>
+                <div class="header-main">
+                    <h1>PLINY</h1>
+                    <div id="user-info">
+                        <span id="user-email-display"></span>
+                        <button id="logout-btn" title="ログアウト">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-log-out">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                                <polyline points="16 17 21 12 16 7"/>
+                                <line x1="21" y1="12" x2="9" y2="12"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
                 <div id="global-actions">
                     <button id="undo-btn" title="元に戻す (Ctrl+Z)" disabled></button>
                     <button id="redo-btn" title="やり直す (Ctrl+Y)" disabled></button>
@@ -87,21 +122,16 @@
                     </button>
                     <div class="accordion-content">
                         <div class="data-manager-section">
-                            <h4>JSONデータ編集</h4>
-                            <button id="load-raw-data-btn" class="button secondary">現在のデータを表示</button>
-                            <textarea id="raw-data-editor" placeholder="JSON形式でデータを直接編集できます..." rows="10" style="display: none;"></textarea>
-                            <div id="raw-data-buttons" style="display: none;">
-                                <button id="save-raw-data-btn" class="button primary">保存</button>
-                                <button id="cancel-raw-edit-btn" class="button secondary">キャンセル</button>
-                            </div>
+                            <h4>JSONデータエクスポート</h4>
+                            <button id="export-json-btn" class="button secondary">現在のデータをエクスポート</button>
                         </div>
                         <div class="data-manager-section">
-                            <h4>JSONBinからインポート</h4>
-                            <input type="url" id="jsonbin-url" placeholder="JSONBin URL (例: https://api.jsonbin.io/v3/b/...)">
+                             <h4>JSONからインポート</h4>
+                            <input type="file" id="import-json-file" accept=".json">
                             <label>
                                 <input type="checkbox" id="merge-with-existing"> 既存データとマージ
                             </label>
-                            <button id="import-jsonbin-btn" class="button primary">インポート</button>
+                            <button id="import-json-btn" class="button primary">インポート</button>
                         </div>
                     </div>
                 </div>
