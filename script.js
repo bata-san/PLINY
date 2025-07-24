@@ -1,7 +1,7 @@
 // ===============================================
 // 定数
 // ===============================================
-const WORKER_URL = 'https://pliny-worker.youguitest.workers.dev'; // ローカル開発時は localhost、デプロイ後は実際のWorker URLに変更
+const WORKER_URL = 'https://pliny-worker.youguitest.workers.dev'; // デプロイ済みのWorker URL
 const PRESET_COLORS = ['#007aff', '#ff9500', '#34c759', '#ff3b30', '#af52de', '#5856d6', '#ff2d55', '#ffcc00', '#8e8e93'];
 const ICONS = {
     delete: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`,
@@ -11,6 +11,9 @@ const ICONS = {
     redo: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8C6.94 8 3.02 10.93 1.53 15.22L3.9 16C4.95 12.81 7.96 10.5 11.5 10.5C13.46 10.5 15.23 11.22 16.62 12.38L13 16H22V7L18.4 10.6Z"/></svg>`,
     plus: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
     chevron: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`,
+    user: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+    login: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>`,
+    logout: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`,
 };
 
 // ===============================================
@@ -23,17 +26,365 @@ let undoStack = [];
 let redoStack = [];
 let currentDataVersion = null; // バージョン管理用
 
+// ユーザー認証の状態管理
+let currentUser = {
+    isAuthenticated: false,
+    email: null,
+    id: null
+};
+
 // ===============================================
 // 初期化処理
 // ===============================================
 document.addEventListener('DOMContentLoaded', () => {
+    // 認証状態をチェック
+    const isAuthenticated = checkAuthState();
+    
+    if (isAuthenticated) {
+        // 認証済みの場合：通常のアプリを初期化
+        initializeApp();
+        updateAuthUI();
+    } else {
+        // 未認証の場合：認証モーダルを表示
+        showAuthInterface();
+    }
+});
+
+function initializeApp() {
     // flatpickrを確実に初期化
     initializeFlatpickr();
     initializeCalendar();
     initializeIcons();
     bindGlobalEvents();
-    loadData();
-});
+    
+    // 認証済みの場合のみデータを読み込み
+    if (currentUser.isAuthenticated) {
+        loadData();
+    }
+}
+
+function checkAuthState() {
+    const email = localStorage.getItem('pliny_user_email');
+    const token = localStorage.getItem('pliny_auth_token');
+    const name = localStorage.getItem('pliny_user_name');
+    
+    if (email && isValidEmail(email) && token) {
+        currentUser.isAuthenticated = true;
+        currentUser.email = email;
+        currentUser.token = token;
+        currentUser.name = name;
+        return true;
+    }
+    
+    // 認証情報が不完全な場合はクリア
+    localStorage.removeItem('pliny_user_email');
+    localStorage.removeItem('pliny_auth_token');
+    localStorage.removeItem('pliny_user_name');
+    return false;
+}
+
+function isValidEmail(email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+}
+
+function updateAuthUI() {
+    const loggedOutSection = document.getElementById('logged-out-section');
+    const loggedInSection = document.getElementById('logged-in-section');
+    
+    if (currentUser.isAuthenticated) {
+        if (loggedOutSection) loggedOutSection.style.display = 'none';
+        if (loggedInSection) loggedInSection.style.display = 'block';
+        
+        const currentEmailEl = document.getElementById('current-email');
+        if (currentEmailEl) currentEmailEl.textContent = currentUser.email;
+    } else {
+        if (loggedOutSection) loggedOutSection.style.display = 'block';
+        if (loggedInSection) loggedInSection.style.display = 'none';
+    }
+}
+
+function showAuthInterface() {
+    const appContainer = document.getElementById('app-container');
+    if (appContainer) {
+        appContainer.style.display = 'none';
+    }
+    
+    // 認証フォームを表示
+    showAuthModal();
+}
+
+function showAuthModal() {
+    const authModal = document.createElement('div');
+    authModal.id = 'auth-modal';
+    authModal.className = 'auth-modal';
+    authModal.innerHTML = `
+        <div class="auth-modal-content">
+            <div class="auth-header">
+                <h2>PLINY にログイン</h2>
+                <p>メールアドレスでアカウントを作成またはログインしてください</p>
+            </div>
+            
+            <div class="auth-tabs">
+                <button class="auth-tab active" data-tab="login">ログイン</button>
+                <button class="auth-tab" data-tab="register">新規登録</button>
+            </div>
+            
+            <div class="auth-forms">
+                <!-- ログインフォーム -->
+                <form id="login-form" class="auth-form active">
+                    <div class="form-group">
+                        <label for="login-email">メールアドレス</label>
+                        <input type="email" id="login-email" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="login-password">パスワード</label>
+                        <input type="password" id="login-password" required>
+                    </div>
+                    <button type="submit" class="auth-submit-btn">
+                        ${ICONS.login}
+                        <span>ログイン</span>
+                    </button>
+                </form>
+                
+                <!-- 新規登録フォーム -->
+                <form id="register-form" class="auth-form">
+                    <div class="form-group">
+                        <label for="register-name">名前</label>
+                        <input type="text" id="register-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="register-email">メールアドレス</label>
+                        <input type="email" id="register-email" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="register-password">パスワード</label>
+                        <input type="password" id="register-password" required minlength="6">
+                    </div>
+                    <div class="form-group">
+                        <label for="register-password-confirm">パスワード確認</label>
+                        <input type="password" id="register-password-confirm" required minlength="6">
+                    </div>
+                    <button type="submit" class="auth-submit-btn">
+                        ${ICONS.user}
+                        <span>アカウント作成</span>
+                    </button>
+                </form>
+            </div>
+            
+            <div id="auth-error" class="auth-error"></div>
+            <div id="auth-loading" class="auth-loading" style="display: none;">
+                <div class="spinner"></div>
+                <span>処理中...</span>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(authModal);
+    setupAuthEvents();
+}
+
+function setupAuthEvents() {
+    // タブ切り替え
+    document.querySelectorAll('.auth-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            const targetTab = tab.dataset.tab;
+            
+            // タブの状態更新
+            document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            
+            // フォームの表示切り替え
+            document.querySelectorAll('.auth-form').forEach(form => form.classList.remove('active'));
+            document.getElementById(`${targetTab}-form`).classList.add('active');
+            
+            // エラーメッセージをクリア
+            document.getElementById('auth-error').textContent = '';
+        });
+    });
+    
+    // ログインフォーム
+    document.getElementById('login-form').addEventListener('submit', handleLogin);
+    
+    // 新規登録フォーム
+    document.getElementById('register-form').addEventListener('submit', handleRegister);
+}
+
+// ===============================================
+// 認証関連関数
+// ===============================================
+async function handleLogin(e) {
+    e.preventDefault();
+    
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+    
+    if (!email || !password) {
+        showAuthError('メールアドレスとパスワードを入力してください。');
+        return;
+    }
+    
+    showAuthLoading(true);
+    
+    try {
+        const response = await fetch(`${WORKER_URL}/api/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(result.error || 'ログインに失敗しました');
+        }
+        
+        // 認証情報を保存
+        currentUser.isAuthenticated = true;
+        currentUser.email = result.email;
+        currentUser.token = result.token;
+        currentUser.name = result.name;
+        
+        localStorage.setItem('pliny_auth_token', result.token);
+        localStorage.setItem('pliny_user_email', result.email);
+        localStorage.setItem('pliny_user_name', result.name);
+        
+        // 認証モーダルを閉じてアプリを初期化
+        hideAuthModal();
+        showApp();
+        initializeApp();
+        updateAuthUI();
+        
+    } catch (error) {
+        showAuthError(error.message);
+    } finally {
+        showAuthLoading(false);
+    }
+}
+
+async function handleRegister(e) {
+    e.preventDefault();
+    
+    const name = document.getElementById('register-name').value.trim();
+    const email = document.getElementById('register-email').value.trim();
+    const password = document.getElementById('register-password').value;
+    const passwordConfirm = document.getElementById('register-password-confirm').value;
+    
+    if (!name || !email || !password || !passwordConfirm) {
+        showAuthError('すべての項目を入力してください。');
+        return;
+    }
+    
+    if (password !== passwordConfirm) {
+        showAuthError('パスワードが一致しません。');
+        return;
+    }
+    
+    if (password.length < 6) {
+        showAuthError('パスワードは6文字以上で入力してください。');
+        return;
+    }
+    
+    showAuthLoading(true);
+    
+    try {
+        const response = await fetch(`${WORKER_URL}/api/auth/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, email, password })
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(result.error || 'アカウント作成に失敗しました');
+        }
+        
+        // 認証情報を保存
+        currentUser.isAuthenticated = true;
+        currentUser.email = result.email;
+        currentUser.token = result.token;
+        currentUser.name = result.name;
+        
+        localStorage.setItem('pliny_auth_token', result.token);
+        localStorage.setItem('pliny_user_email', result.email);
+        localStorage.setItem('pliny_user_name', result.name);
+        
+        // 認証モーダルを閉じてアプリを初期化
+        hideAuthModal();
+        showApp();
+        initializeApp();
+        updateAuthUI();
+        
+    } catch (error) {
+        showAuthError(error.message);
+    } finally {
+        showAuthLoading(false);
+    }
+}
+
+function showAuthError(message) {
+    const errorElement = document.getElementById('auth-error');
+    if (errorElement) {
+        errorElement.textContent = message;
+        errorElement.style.display = 'block';
+    }
+}
+
+function showAuthLoading(show) {
+    const loadingElement = document.getElementById('auth-loading');
+    if (loadingElement) {
+        loadingElement.style.display = show ? 'flex' : 'none';
+    }
+}
+
+function hideAuthModal() {
+    const authModal = document.getElementById('auth-modal');
+    if (authModal) {
+        authModal.remove();
+    }
+}
+
+function showApp() {
+    const appContainer = document.getElementById('app-container');
+    if (appContainer) {
+        appContainer.style.display = 'block';
+    }
+}
+
+async function logout() {
+    try {
+        // サーバーに対してログアウトリクエストを送信（必要に応じて）
+        if (currentUser.token) {
+            await fetch(`${WORKER_URL}/api/auth/logout`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${currentUser.token}`
+                }
+            });
+        }
+    } catch (error) {
+        console.warn('ログアウトAPIの呼び出しに失敗:', error);
+    }
+    
+    // ローカルの認証情報をクリア
+    currentUser.isAuthenticated = false;
+    currentUser.email = null;
+    currentUser.token = null;
+    currentUser.name = null;
+    
+    localStorage.removeItem('pliny_auth_token');
+    localStorage.removeItem('pliny_user_email');
+    localStorage.removeItem('pliny_user_name');
+    
+    // データをクリア
+    tasks = [];
+    labels = [];
+    
+    // 認証画面を表示
+    showAuthInterface();
+}
 
 function initializeFlatpickr() {
     const dueDateInput = document.getElementById('task-due-date');
@@ -113,11 +464,25 @@ function initializeCalendar() {
 }
 
 async function loadData() {
+    if (!currentUser.isAuthenticated || !currentUser.token) {
+        console.error('認証されていません');
+        return;
+    }
+
     const loadingOverlay = document.getElementById('loading-overlay');
     loadingOverlay.style.display = 'flex';
     try {
-        const res = await fetch(`${WORKER_URL}/api/data`);
+        const res = await fetch(`${WORKER_URL}/api/data`, {
+            headers: {
+                'Authorization': `Bearer ${currentUser.token}`
+            }
+        });
         if (!res.ok) {
+            if (res.status === 401) {
+                // 認証エラーの場合、ログアウト処理
+                await logout();
+                return;
+            }
             throw new Error(`サーバーエラー: ${res.status}`);
         }
         
@@ -135,6 +500,11 @@ async function loadData() {
 }
 
 async function saveData(tasksToSave = tasks, labelsToSave = labels, isInitialSave = false) {
+    if (!currentUser.isAuthenticated || !currentUser.token) {
+        console.error('認証されていません');
+        return;
+    }
+
     if (!Array.isArray(tasksToSave) || !Array.isArray(labelsToSave)) {
         console.error('saveData: 無効なデータ形式');
         return;
@@ -169,11 +539,18 @@ async function saveData(tasksToSave = tasks, labelsToSave = labels, isInitialSav
 
             const res = await fetch(`${WORKER_URL}/api/data`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${currentUser.token}`
+                },
                 body: JSON.stringify(requestBody)
             });
 
-            if (res.status === 409) {
+            if (res.status === 401) {
+                // 認証エラーの場合、ログアウト処理
+                await logout();
+                return;
+            } else if (res.status === 409) {
                 console.warn('データの競合が検出されました');
                 if (confirm("データの競合が発生しました。他の端末でデータが更新された可能性があります。最新のデータを読み込み直しますか？")) {
                     await loadData();
@@ -220,6 +597,7 @@ function renderAll() {
             labels = [];
         }
 
+        renderUserProfile();
         renderTaskList();
         renderCalendar();
         renderLabelEditor();
@@ -241,6 +619,56 @@ function renderAll() {
         } catch (e) {
             console.error('ラベルエディタのレンダリングに失敗:', e);
         }
+    }
+}
+
+function renderUserProfile() {
+    // ユーザープロフィール要素が存在しない場合は作成
+    let userProfileContainer = document.getElementById('user-profile-container');
+    if (!userProfileContainer) {
+        // ヘッダーを探してプロフィール要素を追加
+        const appContainer = document.getElementById('app-container');
+        if (appContainer) {
+            userProfileContainer = document.createElement('div');
+            userProfileContainer.id = 'user-profile-container';
+            userProfileContainer.className = 'user-profile-container';
+            appContainer.insertBefore(userProfileContainer, appContainer.firstChild);
+        } else {
+            console.warn('app-container要素が見つかりません');
+            return;
+        }
+    }
+
+    if (currentUser.isAuthenticated) {
+        userProfileContainer.innerHTML = `
+            <div class="user-profile">
+                <div class="user-info">
+                    <div class="user-avatar">
+                        ${ICONS.user}
+                    </div>
+                    <div class="user-details">
+                        <span class="user-name">${currentUser.name || 'ユーザー'}</span>
+                        <span class="user-email">${currentUser.email}</span>
+                    </div>
+                </div>
+                <button id="logout-btn" class="logout-btn" title="ログアウト">
+                    ${ICONS.logout}
+                    <span>ログアウト</span>
+                </button>
+            </div>
+        `;
+
+        // ログアウトボタンのイベントリスナーを設定
+        const logoutBtn = document.getElementById('logout-btn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', async () => {
+                if (confirm('ログアウトしますか？')) {
+                    await logout();
+                }
+            });
+        }
+    } else {
+        userProfileContainer.innerHTML = '';
     }
 }
 
@@ -720,6 +1148,7 @@ function bindGlobalEvents() {
     setupUndoRedoEvents();
     setupAiEvents();
     setupDataManagerEvents();
+    setupGoogleCalendarEvents();
     setupWindowEvents();
 }
 
@@ -1056,6 +1485,57 @@ function setupDataManagerEvents() {
 
 function setupAiEvents() {
     document.getElementById('gemini-trigger-btn')?.addEventListener('click', handleAiInteraction);
+}
+
+function setupGoogleCalendarEvents() {
+    // Google Calendar認証ボタン
+    document.getElementById('google-auth-btn')?.addEventListener('click', async () => {
+        try {
+            // 直接Google認証URLにリダイレクト
+            const clientId = '908477423398-0j7qtb4j8ksr9lhbl3o41snb1v46n1vs.apps.googleusercontent.com'; // 実際のクライアントIDに置換が必要
+            const redirectUri = window.location.origin + window.location.pathname;
+            const scope = 'https://www.googleapis.com/auth/calendar';
+            
+            const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+            authUrl.searchParams.set('client_id', clientId);
+            authUrl.searchParams.set('redirect_uri', redirectUri);
+            authUrl.searchParams.set('response_type', 'token'); // implicit flowを使用
+            authUrl.searchParams.set('scope', scope);
+            authUrl.searchParams.set('include_granted_scopes', 'true');
+            authUrl.searchParams.set('state', 'google_calendar_auth');
+            
+            // 現在のページで認証URLにリダイレクト
+            window.location.href = authUrl.toString();
+            
+        } catch (error) {
+            console.error('Google認証エラー:', error);
+            updateSyncStatus('error', `認証エラー: ${error.message}`);
+        }
+    });
+
+    // 同期実行ボタン
+    document.getElementById('sync-now-btn')?.addEventListener('click', performGoogleCalendarSync);
+
+    // 自動同期チェックボックス
+    document.getElementById('auto-sync-enabled')?.addEventListener('change', (e) => {
+        if (e.target.checked) {
+            startAutoSync();
+        } else {
+            stopAutoSync();
+        }
+    });
+
+    // カレンダー選択
+    document.getElementById('calendar-select')?.addEventListener('change', (e) => {
+        googleCalendarAuth.selectedCalendarId = e.target.value;
+        localStorage.setItem('selectedCalendarId', e.target.value);
+    });
+
+    // 初期化時に認証状態をチェック
+    checkGoogleAuthStatus();
+    
+    // URLフラグメントから認証トークンを処理
+    handleAuthCallback();
 }
 
 function setupWindowEvents() {
@@ -1580,4 +2060,350 @@ function processAiActions(actions) {
             console.error(`アクションの処理に失敗しました: ${action.action}`, e);
         }
     });
+}
+
+// Google Calendar認証とデータ同期の機能を追加します
+async function checkGoogleAuthStatus() {
+    try {
+        // 保存されたトークンがあるかチェック
+        const savedTokens = localStorage.getItem('googleCalendarTokens');
+        if (!savedTokens) {
+            updateSyncStatus('disconnected', '認証が必要です');
+            return;
+        }
+
+        const tokens = JSON.parse(savedTokens);
+        
+        // トークンの有効性を確認
+        if (tokens.expires_at && Date.now() > tokens.expires_at) {
+            updateSyncStatus('disconnected', 'トークンの有効期限切れ - 再認証が必要です');
+            localStorage.removeItem('googleCalendarTokens');
+            return;
+        }
+
+        googleCalendarAuth.isAuthenticated = true;
+        googleCalendarAuth.accessToken = tokens.access_token;
+        googleCalendarAuth.expiresAt = tokens.expires_at;
+
+        updateSyncStatus('connected', 'Google Calendarに接続済み');
+        
+        // カレンダーリストを取得
+        await loadGoogleCalendars();
+
+    } catch (error) {
+        console.error('認証状態チェックエラー:', error);
+        updateSyncStatus('error', `認証確認エラー: ${error.message}`);
+        // エラーの場合は保存されたトークンをクリア
+        localStorage.removeItem('googleCalendarTokens');
+    }
+}
+
+async function loadGoogleCalendars() {
+    try {
+        const response = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
+            headers: {
+                'Authorization': `Bearer ${googleCalendarAuth.accessToken}`
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`カレンダーリスト取得エラー: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const calendarSelect = document.getElementById('calendar-select');
+        
+        // 既存のオプションをクリア
+        calendarSelect.innerHTML = '<option value="">カレンダーを選択...</option>';
+        
+        // カレンダーを追加
+        data.items.forEach(calendar => {
+            const option = document.createElement('option');
+            option.value = calendar.id;
+            option.textContent = calendar.summary;
+            calendarSelect.appendChild(option);
+        });
+
+        // 保存されたカレンダーIDがあれば復元
+        const savedCalendarId = localStorage.getItem('selectedCalendarId');
+        if (savedCalendarId) {
+            calendarSelect.value = savedCalendarId;
+            googleCalendarAuth.selectedCalendarId = savedCalendarId;
+        }
+
+        // カレンダー選択UIを表示
+        document.getElementById('calendar-select-container').style.display = 'block';
+
+    } catch (error) {
+        console.error('カレンダーリスト読み込みエラー:', error);
+        updateSyncStatus('error', `カレンダー読み込みエラー: ${error.message}`);
+    }
+}
+
+async function performGoogleCalendarSync() {
+    if (!googleCalendarAuth.isAuthenticated || !googleCalendarAuth.selectedCalendarId) {
+        updateSyncStatus('error', '認証またはカレンダー選択が必要です');
+        return;
+    }
+
+    const syncButton = document.getElementById('sync-now-btn');
+    const originalText = syncButton.textContent;
+    syncButton.textContent = '同期中...';
+    syncButton.disabled = true;
+
+    try {
+        // クライアントサイドでGoogle Calendar APIを直接呼び出し
+        await syncTasksToGoogleCalendar();
+        await syncGoogleCalendarToTasks();
+        
+        // 同期結果をログに表示
+        addSyncLogEntry('success', '同期完了');
+        updateSyncStatus('connected', '同期完了');
+
+        // データを再読み込み
+        await loadData();
+
+    } catch (error) {
+        console.error('Google Calendar同期エラー:', error);
+        addSyncLogEntry('error', `同期エラー: ${error.message}`);
+        updateSyncStatus('error', `同期エラー: ${error.message}`);
+    } finally {
+        syncButton.textContent = originalText;
+        syncButton.disabled = false;
+    }
+}
+
+async function syncTasksToGoogleCalendar() {
+    // PLINYタスクをGoogle Calendarに同期
+    const plinyTasks = tasks.filter(task => task.startDate);
+    
+    for (const task of plinyTasks) {
+        try {
+            const eventData = {
+                summary: task.text,
+                start: { date: task.startDate },
+                end: { date: task.endDate || task.startDate },
+                description: `PLINY Task ID: ${task.id}\n完了状態: ${task.completed ? '完了' : '未完了'}`,
+                extendedProperties: {
+                    private: {
+                        plinyTaskId: task.id,
+                        plinyCompleted: task.completed.toString()
+                    }
+                }
+            };
+            
+            // 既存のイベントをチェック
+            const existingEvent = await findExistingCalendarEvent(task.id);
+            
+            if (existingEvent) {
+                // 更新
+                await updateGoogleCalendarEvent(existingEvent.id, eventData);
+            } else {
+                // 新規作成
+                await createGoogleCalendarEvent(eventData);
+            }
+        } catch (error) {
+            console.warn(`タスク ${task.id} の同期に失敗:`, error);
+        }
+    }
+}
+
+async function syncGoogleCalendarToTasks() {
+    // Google CalendarのイベントをPLINYタスクに同期
+    try {
+        const events = await fetchGoogleCalendarEvents();
+        
+        for (const event of events) {
+            // PLINYから作成されたイベントはスキップ
+            if (event.extendedProperties?.private?.plinyTaskId) {
+                continue;
+            }
+            
+            // 新しいタスクとして追加
+            const existingTask = tasks.find(t => t.googleCalendarEventId === event.id);
+            if (!existingTask && event.start?.date && event.summary) {
+                const newTask = normalizeTask({
+                    id: `gcal-${event.id}`,
+                    text: event.summary,
+                    startDate: event.start.date,
+                    endDate: event.end?.date || event.start.date,
+                    completed: false,
+                    labelIds: [],
+                    parentId: null,
+                    isCollapsed: true,
+                    googleCalendarEventId: event.id
+                });
+                
+                tasks.push(newTask);
+            }
+        }
+    } catch (error) {
+        console.warn('Google Calendarからの同期に失敗:', error);
+    }
+}
+
+async function fetchGoogleCalendarEvents() {
+    const response = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${googleCalendarAuth.selectedCalendarId}/events?` +
+        new URLSearchParams({
+            timeMin: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+            timeMax: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+            singleEvents: 'true',
+            orderBy: 'startTime'
+        }), {
+        headers: {
+            'Authorization': `Bearer ${googleCalendarAuth.accessToken}`,
+            'Accept': 'application/json'
+        }
+    });
+    
+    if (!response.ok) {
+        throw new Error(`Google Calendar API エラー: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data.items || [];
+}
+
+async function findExistingCalendarEvent(taskId) {
+    try {
+        const events = await fetchGoogleCalendarEvents();
+        return events.find(event => 
+            event.extendedProperties?.private?.plinyTaskId === taskId
+        );
+    } catch (error) {
+        return null;
+    }
+}
+
+async function createGoogleCalendarEvent(eventData) {
+    const response = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${googleCalendarAuth.selectedCalendarId}/events`,
+        {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${googleCalendarAuth.accessToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(eventData)
+        }
+    );
+    
+    if (!response.ok) {
+        throw new Error(`イベント作成エラー: ${response.status}`);
+    }
+    
+    return await response.json();
+}
+
+async function updateGoogleCalendarEvent(eventId, eventData) {
+    const response = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${googleCalendarAuth.selectedCalendarId}/events/${eventId}`,
+        {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${googleCalendarAuth.accessToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(eventData)
+        }
+    );
+    
+    if (!response.ok) {
+        throw new Error(`イベント更新エラー: ${response.status}`);
+    }
+    
+    return await response.json();
+}
+
+function updateSyncStatus(status, message) {
+    const statusElement = document.getElementById('auth-status');
+    const statusContainer = document.getElementById('google-sync-status');
+    
+    statusElement.textContent = message;
+    
+    // 既存のクラスを削除
+    statusContainer.classList.remove('connected', 'disconnected', 'error');
+    
+    // 新しいステータスクラスを追加
+    statusContainer.classList.add(status);
+}
+
+function addSyncLogEntry(type, message) {
+    const logContainer = document.getElementById('sync-log-content');
+    const logElement = document.getElementById('sync-log');
+    
+    // ログ要素を表示
+    logElement.style.display = 'block';
+    
+    // 新しいログエントリを作成
+    const entry = document.createElement('div');
+    entry.className = `sync-log-entry ${type}`;
+    entry.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+    
+    // ログを先頭に追加
+    logContainer.insertBefore(entry, logContainer.firstChild);
+    
+    // 古いログエントリを削除（最大20件まで保持）
+    while (logContainer.children.length > 20) {
+        logContainer.removeChild(logContainer.lastChild);
+    }
+}
+
+function startAutoSync() {
+    if (autoSyncInterval) {
+        clearInterval(autoSyncInterval);
+    }
+    
+    autoSyncInterval = setInterval(() => {
+        if (googleCalendarAuth.isAuthenticated && googleCalendarAuth.selectedCalendarId) {
+            performGoogleCalendarSync();
+        }
+    }, 10 * 60 * 1000); // 10分間隔
+
+    addSyncLogEntry('success', '自動同期を開始しました (10分間隔)');
+}
+
+function stopAutoSync() {
+    if (autoSyncInterval) {
+        clearInterval(autoSyncInterval);
+        autoSyncInterval = null;
+    }
+    
+    addSyncLogEntry('success', '自動同期を停止しました');
+}
+
+// URL認証コールバック処理を追加
+function handleAuthCallback() {
+    // URLフラグメントから認証情報を取得
+    const hash = window.location.hash.substring(1);
+    const params = new URLSearchParams(hash);
+    
+    if (params.get('state') === 'google_calendar_auth' && params.get('access_token')) {
+        const accessToken = params.get('access_token');
+        const expiresIn = params.get('expires_in');
+        
+        // トークンを保存
+        const tokens = {
+            access_token: accessToken,
+            expires_at: Date.now() + (parseInt(expiresIn) * 1000),
+            token_type: params.get('token_type') || 'Bearer'
+        };
+        
+        localStorage.setItem('googleCalendarTokens', JSON.stringify(tokens));
+        
+        // URLをクリア
+        window.history.replaceState({}, document.title, window.location.pathname);
+        
+        // 認証状態を更新
+        googleCalendarAuth.isAuthenticated = true;
+        googleCalendarAuth.accessToken = accessToken;
+        googleCalendarAuth.expiresAt = tokens.expires_at;
+        
+        updateSyncStatus('connected', 'Google Calendar認証成功！');
+        addSyncLogEntry('success', 'Google Calendar認証が完了しました');
+        
+        // カレンダーリストを読み込み
+        loadGoogleCalendars();
+    }
 }

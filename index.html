@@ -106,6 +106,33 @@
                     </div>
                 </div>
             </div>
+
+            <!-- アカウント管理 -->
+            <div class="accordion">
+                <div class="accordion-toggle">
+                    <span>� アカウント管理</span>
+                    <div class="accordion-icon"></div>
+                </div>
+                <div class="accordion-content">
+                    <div class="control-group">
+                        <div id="account-status" class="account-status">
+                            <div id="logged-out-section">
+                                <h4>ログイン / 新規登録</h4>
+                                <input type="email" id="email-input" placeholder="メールアドレス" required>
+                                <div class="account-actions">
+                                    <button id="login-btn" class="button primary">ログイン</button>
+                                    <button id="register-btn" class="button secondary">新規登録</button>
+                                </div>
+                            </div>
+                            <div id="logged-in-section" style="display: none;">
+                                <h4>ログイン中</h4>
+                                <p class="current-user">ユーザー: <span id="current-email"></span></p>
+                                <button id="logout-btn" class="button secondary">ログアウト</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Right Pane: Content -->
