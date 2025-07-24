@@ -8,3 +8,6 @@ id = "dabbf2c6980d4a428b08727ca82b5e41"
 
 [vars]
 GEMINI_API_KEY = "AIzaSyD4GPZ85iVlKjbmd-j3DKfbPooGpqlaZtM"
+GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID"
+GOOGLE_CLIENT_SECRET = "YOUR_GOOGLE_CLIENT_SECRET"
+GOOGLE_REDIRECT_URI = "https://pliny-worker.youguitest.workers.dev/auth/google/callback"
