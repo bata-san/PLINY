@@ -37,25 +37,378 @@ let currentUser = {
 // 初期化処理
 // ===============================================
 document.addEventListener('DOMContentLoaded', () => {
+/* ===============================================
+ * 高度なエラーハンドリング - エンタープライズグレード
+ * =============================================== */
+
+// エラー表示関数
+function showAuthError(title, message, duration = 5000) {
+    const errorDiv = document.querySelector('.auth-error');
+    const titleEl = errorDiv.querySelector('.error-title');
+    const messageEl = errorDiv.querySelector('.error-message');
+    
+    titleEl.textContent = title;
+    messageEl.textContent = message;
+    
+    errorDiv.style.display = 'flex';
+    errorDiv.classList.add('show');
+    
+    // 自動非表示
+    setTimeout(() => {
+        hideAuthError();
+    }, duration);
+}
+
+function hideAuthError() {
+    const errorDiv = document.querySelector('.auth-error');
+    errorDiv.classList.remove('show');
+    setTimeout(() => {
+        errorDiv.style.display = 'none';
+    }, 300);
+}
+
+// 成功表示関数
+function showAuthSuccess(title, message, duration = 3000) {
+    const successDiv = document.querySelector('.auth-success');
+    const titleEl = successDiv.querySelector('.success-title');
+    const messageEl = successDiv.querySelector('.success-message');
+    
+    titleEl.textContent = title;
+    messageEl.textContent = message;
+    
+    successDiv.style.display = 'flex';
+    successDiv.classList.add('show');
+    
+    setTimeout(() => {
+        hideAuthSuccess();
+    }, duration);
+}
+
+function hideAuthSuccess() {
+    const successDiv = document.querySelector('.auth-success');
+    successDiv.classList.remove('show');
+    setTimeout(() => {
+        successDiv.style.display = 'none';
+    }, 300);
+}
+
+// フィールドレベルエラー表示
+// フィールドレベルエラー表示
+function showFieldError(fieldNameOrElement, message) {
+    let field, errorElement;
+    
+    if (typeof fieldNameOrElement === 'string') {
+        // fieldNameOrElementが文字列の場合、IDとして扱う
+        field = document.getElementById(fieldNameOrElement);
+        errorElement = document.getElementById(`${fieldNameOrElement}-error`);
+    } else {
+        // fieldNameOrElementがHTMLElementの場合
+        field = fieldNameOrElement;
+        errorElement = document.getElementById(`${field.id}-error`);
+    }
+    
+    if (!field || !errorElement) {
+        console.warn(`Field or error element not found for: ${fieldNameOrElement}`);
+        return;
+    }
+    
+    field.classList.add('error');
+    errorElement.textContent = message;
+    errorElement.style.display = 'block';
+    
+    // フィールドにフォーカスが移ったらエラーをクリア
+    field.addEventListener('input', () => clearFieldError(field), { once: true });
+}
+
+function clearFieldError(fieldNameOrElement) {
+    let field, errorElement;
+    
+    if (typeof fieldNameOrElement === 'string') {
+        field = document.getElementById(fieldNameOrElement);
+        errorElement = document.getElementById(`${fieldNameOrElement}-error`);
+    } else {
+        field = fieldNameOrElement;
+        errorElement = document.getElementById(`${field.id}-error`);
+    }
+    
+    if (field) field.classList.remove('error');
+    if (errorElement) errorElement.style.display = 'none';
+}
+
+function clearAllFieldErrors() {
+    document.querySelectorAll('.auth-modal input.error').forEach(input => {
+        input.classList.remove('error');
+    });
+    document.querySelectorAll('.field-error').forEach(errorDiv => {
+        errorDiv.style.display = 'none';
+    });
+}
+
+// エラー分類とメッセージ
+const AUTH_ERRORS = {
+    NETWORK_ERROR: {
+        title: 'ネットワークエラー',
+        message: 'インターネット接続を確認してください。'
+    },
+    INVALID_EMAIL: {
+        title: '無効なメールアドレス',
+        message: '有効なメールアドレスを入力してください。'
+    },
+    WEAK_PASSWORD: {
+        title: 'パスワードが弱すぎます',
+        message: 'パスワードを強化してください。'
+    },
+    PASSWORD_MISMATCH: {
+        title: 'パスワードが一致しません',
+        message: 'パスワードを確認してください。'
+    },
+    EMAIL_EXISTS: {
+        title: 'メールアドレスが既に使用されています',
+        message: 'ログインするか、別のメールアドレスを使用してください。'
+    },
+    INVALID_CREDENTIALS: {
+        title: 'ログインに失敗しました',
+        message: 'メールアドレスまたはパスワードが正しくありません。'
+    },
+    TERMS_NOT_ACCEPTED: {
+        title: '利用規約への同意が必要です',
+        message: '利用規約とプライバシーポリシーに同意してください。'
+    },
+    SERVER_ERROR: {
+        title: 'サーバーエラー',
+        message: 'しばらく時間をおいて再度お試しください。'
+    },
+    RATE_LIMIT: {
+        title: 'リクエストが多すぎます',
+        message: 'しばらく時間をおいて再度お試しください。'
+    }
+};
+
+// バリデーション関数
+function validateEmail(email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+}
+
+function validatePassword(password) {
+    return {
+        length: password.length >= 6, // 8文字から6文字に緩和
+        uppercase: /[A-Z]/.test(password),
+        lowercase: /[a-z]/.test(password),
+        number: /\d/.test(password),
+        special: /[!@#$%^&*(),.?":{}|<>]/.test(password)
+    };
+}
+
+function getPasswordStrength(password) {
+    const checks = validatePassword(password);
+    const score = Object.values(checks).filter(Boolean).length;
+    
+    // 必須条件を緩和：長さ + 英数字のみで「普通」レベル
+    if (password.length < 6) return { level: 'very-weak', text: '非常に弱い', percentage: 20 };
+    if (score <= 2) return { level: 'weak', text: '弱い', percentage: 40 };
+    if (score === 3) return { level: 'medium', text: '普通', percentage: 60 };
+    if (score === 4) return { level: 'strong', text: '強い', percentage: 80 };
+    return { level: 'very-strong', text: '非常に強い', percentage: 100 };
+}
+
+// リアルタイムバリデーション
+function setupRealtimeValidation() {
+    const modal = document.querySelector('.auth-modal');
+    
+    // メールバリデーション
+    const emailFields = modal.querySelectorAll('input[type="email"]');
+    emailFields.forEach(field => {
+        field.addEventListener('blur', () => {
+            if (field.value && !validateEmail(field.value)) {
+                showFieldError(field.name, '有効なメールアドレスを入力してください');
+            }
+        });
+        
+        field.addEventListener('input', () => {
+            if (field.classList.contains('error') && validateEmail(field.value)) {
+                clearFieldError(field.name);
+            }
+        });
+    });
+    
+    // パスワード強度チェック
+    const passwordField = modal.querySelector('input[name="password"]');
+    const confirmPasswordField = modal.querySelector('input[name="confirmPassword"]');
+    
+    if (passwordField) {
+        passwordField.addEventListener('input', () => {
+            updatePasswordStrength(passwordField.value);
+            
+            // 確認パスワードがある場合、一致チェック
+            if (confirmPasswordField && confirmPasswordField.value) {
+                validatePasswordMatch();
+            }
+        });
+    }
+    
+    if (confirmPasswordField) {
+        confirmPasswordField.addEventListener('input', validatePasswordMatch);
+        confirmPasswordField.addEventListener('blur', validatePasswordMatch);
+    }
+}
+
+function validatePasswordMatch() {
+    const passwordField = document.querySelector('input[name="password"]');
+    const confirmPasswordField = document.querySelector('input[name="confirmPassword"]');
+    
+    if (passwordField.value !== confirmPasswordField.value) {
+        showFieldError('confirmPassword', 'パスワードが一致しません');
+        return false;
+    } else {
+        clearFieldError('confirmPassword');
+        return true;
+    }
+}
+
+function updatePasswordStrength(password) {
+    const strengthBar = document.querySelector('.strength-fill');
+    const strengthText = document.querySelector('.strength-level');
+    const requirements = document.querySelectorAll('.requirement');
+    
+    if (!strengthBar) return;
+    
+    const strength = getPasswordStrength(password);
+    const checks = validatePassword(password);
+    
+    // 強度バーの更新
+    strengthBar.style.width = `${strength.percentage}%`;
+    strengthBar.className = `strength-fill strength-${strength.level}`;
+    
+    // 強度テキストの更新
+    strengthText.textContent = strength.text;
+    strengthText.className = `strength-level strength-${strength.level}`;
+    
+    // 要件チェックの更新
+    requirements.forEach((req, index) => {
+        const checkType = ['length', 'uppercase', 'lowercase', 'number', 'special'][index];
+        if (checks[checkType]) {
+            req.classList.add('satisfied');
+        } else {
+            req.classList.remove('satisfied');
+        }
+    });
+}
+
+// フォーム送信時の高度なバリデーション
+function validateForm(isLogin) {
+    clearAllFieldErrors();
+    let isValid = true;
+    
+    const modal = document.querySelector('.auth-modal');
+    let emailField, passwordField;
+    
+    if (isLogin) {
+        emailField = modal.querySelector('#login-email');
+        passwordField = modal.querySelector('#login-password');
+    } else {
+        emailField = modal.querySelector('#register-email');
+        passwordField = modal.querySelector('#register-password');
+    }
+    
+    if (!emailField || !passwordField) {
+        console.error('Required form fields not found');
+        return false;
+    }
+    
+    // メールバリデーション
+    if (!emailField.value) {
+        showFieldError(emailField, 'メールアドレスを入力してください');
+        isValid = false;
+    } else if (!validateEmail(emailField.value)) {
+        showFieldError(emailField, '有効なメールアドレスを入力してください');
+        isValid = false;
+    }
+    
+    // パスワードバリデーション
+    if (!passwordField.value) {
+        showFieldError(passwordField, 'パスワードを入力してください');
+        isValid = false;
+    } else if (!isLogin) {
+        // 新規登録時の追加チェック - 最低6文字のみ要求に緩和
+        if (passwordField.value.length < 6) {
+            showFieldError(passwordField, 'パスワードは6文字以上で入力してください');
+            isValid = false;
+        }
+        
+        // パスワード確認チェック
+        const confirmPasswordField = modal.querySelector('#register-password-confirm');
+        if (confirmPasswordField && !validatePasswordMatch()) {
+            isValid = false;
+        }
+        
+        // 名前のバリデーション（新規登録のみ）
+        const nameField = modal.querySelector('#register-name');
+        if (nameField && !nameField.value.trim()) {
+            showFieldError(nameField, '名前を入力してください');
+            isValid = false;
+        }
+    }
+    
+    return isValid;
+}
+
+/* ===============================================
+ * ローディング状態管理
+ * =============================================== */
+
+function setFormLoading(isLoading) {
+    const submitBtn = document.querySelector('.auth-submit-btn');
+    const btnContent = submitBtn.querySelector('.btn-content');
+    const btnLoading = submitBtn.querySelector('.btn-loading');
+    
+    if (isLoading) {
+        submitBtn.disabled = true;
+        btnContent.style.display = 'none';
+        btnLoading.style.display = 'flex';
+    } else {
+        submitBtn.disabled = false;
+        btnContent.style.display = 'flex';
+        btnLoading.style.display = 'none';
+    }
+}
+
+/* ===============================================
+ * 既存のスクリプト継続
+ * =============================================== */
+    
+    // アコーディオンイベントを最初に初期化（認証状態に関係なく）
+    setTimeout(() => {
+        bindAccordionEvents();
+        console.log('初期化時にアコーディオンイベントを設定しました');
+    }, 100);
+    
+    // 認証UIを初期化
+    setupAuthUI();
+    
     // 認証状態をチェック
     const isAuthenticated = checkAuthState();
     
     if (isAuthenticated) {
         // 認証済みの場合：通常のアプリを初期化
+        showMainApp();
         initializeApp();
         updateAuthUI();
     } else {
-        // 未認証の場合：認証モーダルを表示
+        // 未認証の場合：高度な認証モーダルを表示
         showAuthInterface();
     }
 });
 
 function initializeApp() {
-    // flatpickrを確実に初期化
+    // アプリのコア機能を初期化
     initializeFlatpickr();
     initializeCalendar();
     initializeIcons();
+    
+    // イベントリスナーをセットアップ
     bindGlobalEvents();
+    setupAuthUI();  // 従来のアカウント管理セクション用
     
     // 認証済みの場合のみデータを読み込み
     if (currentUser.isAuthenticated) {
@@ -104,127 +457,632 @@ function updateAuthUI() {
     }
 }
 
-function showAuthInterface() {
-    const appContainer = document.getElementById('app-container');
-    if (appContainer) {
-        appContainer.style.display = 'none';
+function setupAuthUI() {
+    // ログインボタンのイベントリスナー
+    const loginBtn = document.getElementById('login-btn');
+    const registerBtn = document.getElementById('register-btn');
+    const logoutBtn = document.getElementById('logout-btn');
+    const emailInput = document.getElementById('email-input');
+    
+    if (loginBtn) {
+        loginBtn.addEventListener('click', handleSimpleLogin);
     }
     
-    // 認証フォームを表示
-    showAuthModal();
+    if (registerBtn) {
+        registerBtn.addEventListener('click', handleSimpleRegister);
+    }
+    
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', logout);
+    }
+    
+    if (emailInput) {
+        emailInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                handleSimpleLogin();
+            }
+        });
+    }
 }
 
-function showAuthModal() {
+// HTMLの簡易認証ボタン用のハンドラー関数
+async function handleSimpleLogin() {
+    const emailInput = document.getElementById('email-input');
+    const email = emailInput?.value?.trim();
+    
+    if (!email) {
+        alert('メールアドレスを入力してください。');
+        return;
+    }
+    
+    if (!isValidEmail(email)) {
+        alert('有効なメールアドレスを入力してください。');
+        return;
+    }
+    
+    // 高度な認証モーダルを表示してログインタブに設定
+    showAdvancedAuthModal();
+    
+    // モーダルが表示された後、メールアドレスを自動入力
+    setTimeout(() => {
+        const loginEmailField = document.getElementById('login-email');
+        if (loginEmailField) {
+            loginEmailField.value = email;
+        }
+        
+        // ログインタブを選択
+        const loginTab = document.querySelector('[data-tab="login"]');
+        if (loginTab) {
+            loginTab.click();
+        }
+        
+        // パスワードフィールドにフォーカス
+        const passwordField = document.getElementById('login-password');
+        if (passwordField) {
+            passwordField.focus();
+        }
+    }, 100);
+}
+
+async function handleSimpleRegister() {
+    const emailInput = document.getElementById('email-input');
+    const email = emailInput?.value?.trim();
+    
+    if (!email) {
+        alert('メールアドレスを入力してください。');
+        return;
+    }
+    
+    if (!isValidEmail(email)) {
+        alert('有効なメールアドレスを入力してください。');
+        return;
+    }
+    
+    // 高度な認証モーダルを表示して新規登録タブに設定
+    showAdvancedAuthModal();
+    
+    // モーダルが表示された後、メールアドレスを自動入力
+    setTimeout(() => {
+        const registerEmailField = document.getElementById('register-email');
+        if (registerEmailField) {
+            registerEmailField.value = email;
+        }
+        
+        // 新規登録タブを選択
+        const registerTab = document.querySelector('[data-tab="register"]');
+        if (registerTab) {
+            registerTab.click();
+        }
+        
+        // 名前フィールドにフォーカス
+        const nameField = document.getElementById('register-name');
+        if (nameField) {
+            nameField.focus();
+        }
+    }, 100);
+}
+
+function showAuthInterface() {
+    // 既存のアカウントUIを隠す
+    const rightPane = document.getElementById('right-pane');
+    if (rightPane) {
+        rightPane.style.display = 'none';
+    }
+    
+    // 高度な認証モーダルを表示
+    showAdvancedAuthModal();
+}
+
+function showAdvancedAuthModal() {
+    // 既存のモーダルがあれば削除
+    const existingModal = document.getElementById('auth-modal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
     const authModal = document.createElement('div');
     authModal.id = 'auth-modal';
     authModal.className = 'auth-modal';
     authModal.innerHTML = `
+        <div class="auth-modal-backdrop"></div>
         <div class="auth-modal-content">
             <div class="auth-header">
-                <h2>PLINY にログイン</h2>
-                <p>メールアドレスでアカウントを作成またはログインしてください</p>
+                <div class="auth-logo">
+                    <div class="logo-icon">✨</div>
+                    <h1>PLINY</h1>
+                </div>
+                <h2 id="auth-title">アカウントにサインイン</h2>
+                <p id="auth-subtitle">タスク管理を始めるためにログインしてください</p>
             </div>
             
             <div class="auth-tabs">
-                <button class="auth-tab active" data-tab="login">ログイン</button>
-                <button class="auth-tab" data-tab="register">新規登録</button>
+                <button class="auth-tab active" data-tab="login">
+                    <span class="tab-icon">${ICONS.login}</span>
+                    <span>ログイン</span>
+                </button>
+                <button class="auth-tab" data-tab="register">
+                    <span class="tab-icon">${ICONS.user}</span>
+                    <span>新規登録</span>
+                </button>
             </div>
             
             <div class="auth-forms">
                 <!-- ログインフォーム -->
                 <form id="login-form" class="auth-form active">
                     <div class="form-group">
-                        <label for="login-email">メールアドレス</label>
-                        <input type="email" id="login-email" required>
+                        <label for="login-email">
+                            <span class="label-text">メールアドレス</span>
+                            <span class="label-required">*</span>
+                        </label>
+                        <div class="input-wrapper">
+                            <input type="email" id="login-email" required autocomplete="email" placeholder="example@company.com">
+                            <div class="input-icon">📧</div>
+                        </div>
+                        <div class="field-error" id="login-email-error"></div>
                     </div>
                     <div class="form-group">
-                        <label for="login-password">パスワード</label>
-                        <input type="password" id="login-password" required>
+                        <label for="login-password">
+                            <span class="label-text">パスワード</span>
+                            <span class="label-required">*</span>
+                        </label>
+                        <div class="input-wrapper">
+                            <input type="password" id="login-password" required autocomplete="current-password" placeholder="パスワードを入力">
+                            <button type="button" class="password-toggle" data-target="login-password">
+                                <span class="toggle-icon">👁️</span>
+                            </button>
+                        </div>
+                        <div class="field-error" id="login-password-error"></div>
                     </div>
-                    <button type="submit" class="auth-submit-btn">
-                        ${ICONS.login}
-                        <span>ログイン</span>
+                    <div class="form-options">
+                        <label class="checkbox-wrapper">
+                            <input type="checkbox" id="remember-me">
+                            <span class="checkmark"></span>
+                            <span class="checkbox-label">ログイン状態を保持する</span>
+                        </label>
+                    </div>
+                    <button type="submit" class="auth-submit-btn login-btn">
+                        <span class="btn-content">
+                            <span class="btn-icon">${ICONS.login}</span>
+                            <span class="btn-text">ログイン</span>
+                        </span>
+                        <div class="btn-loading">
+                            <div class="spinner-small"></div>
+                            <span>認証中...</span>
+                        </div>
                     </button>
                 </form>
                 
                 <!-- 新規登録フォーム -->
                 <form id="register-form" class="auth-form">
                     <div class="form-group">
-                        <label for="register-name">名前</label>
-                        <input type="text" id="register-name" required>
+                        <label for="register-name">
+                            <span class="label-text">表示名</span>
+                            <span class="label-required">*</span>
+                        </label>
+                        <div class="input-wrapper">
+                            <input type="text" id="register-name" required autocomplete="name" placeholder="田中 太郎" maxlength="50">
+                            <div class="input-icon">👤</div>
+                        </div>
+                        <div class="field-error" id="register-name-error"></div>
                     </div>
                     <div class="form-group">
-                        <label for="register-email">メールアドレス</label>
-                        <input type="email" id="register-email" required>
+                        <label for="register-email">
+                            <span class="label-text">メールアドレス</span>
+                            <span class="label-required">*</span>
+                        </label>
+                        <div class="input-wrapper">
+                            <input type="email" id="register-email" required autocomplete="email" placeholder="example@company.com">
+                            <div class="input-icon">📧</div>
+                        </div>
+                        <div class="field-error" id="register-email-error"></div>
                     </div>
                     <div class="form-group">
-                        <label for="register-password">パスワード</label>
-                        <input type="password" id="register-password" required minlength="6">
+                        <label for="register-password">
+                            <span class="label-text">パスワード</span>
+                            <span class="label-required">*</span>
+                        </label>
+                        <div class="input-wrapper">
+                            <input type="password" id="register-password" required autocomplete="new-password" placeholder="安全なパスワードを作成" minlength="8">
+                            <button type="button" class="password-toggle" data-target="register-password">
+                                <span class="toggle-icon">👁️</span>
+                            </button>
+                        </div>
+                        <div class="password-strength" id="password-strength">
+                            <div class="strength-bar">
+                                <div class="strength-fill"></div>
+                            </div>
+                            <div class="strength-text">パスワード強度: <span class="strength-level">未入力</span></div>
+                            <div class="strength-requirements">
+                                <div class="requirement" data-rule="length">✓ 6文字以上（必須）</div>
+                                <div class="requirement" data-rule="uppercase">✓ 大文字を含む（推奨）</div>
+                                <div class="requirement" data-rule="lowercase">✓ 小文字を含む（推奨）</div>
+                                <div class="requirement" data-rule="number">✓ 数字を含む（推奨）</div>
+                                <div class="requirement" data-rule="special">✓ 特殊文字を含む（推奨）</div>
+                            </div>
+                        </div>
+                        <div class="field-error" id="register-password-error"></div>
                     </div>
                     <div class="form-group">
-                        <label for="register-password-confirm">パスワード確認</label>
-                        <input type="password" id="register-password-confirm" required minlength="6">
+                        <label for="register-password-confirm">
+                            <span class="label-text">パスワード確認</span>
+                            <span class="label-required">*</span>
+                        </label>
+                        <div class="input-wrapper">
+                            <input type="password" id="register-password-confirm" required autocomplete="new-password" placeholder="上記と同じパスワード" minlength="6">
+                            <button type="button" class="password-toggle" data-target="register-password-confirm">
+                                <span class="toggle-icon">👁️</span>
+                            </button>
+                        </div>
+                        <div class="field-error" id="register-password-confirm-error"></div>
                     </div>
-                    <button type="submit" class="auth-submit-btn">
-                        ${ICONS.user}
-                        <span>アカウント作成</span>
+                    <div class="form-options">
+                        <label class="checkbox-wrapper">
+                            <input type="checkbox" id="accept-terms" required>
+                            <span class="checkmark"></span>
+                            <span class="checkbox-label">
+                                <a href="#" class="terms-link">利用規約</a>と<a href="#" class="privacy-link">プライバシーポリシー</a>に同意します
+                            </span>
+                        </label>
+                    </div>
+                    <button type="submit" class="auth-submit-btn register-btn">
+                        <span class="btn-content">
+                            <span class="btn-icon">${ICONS.user}</span>
+                            <span class="btn-text">アカウントを作成</span>
+                        </span>
+                        <div class="btn-loading">
+                            <div class="spinner-small"></div>
+                            <span>作成中...</span>
+                        </div>
                     </button>
                 </form>
             </div>
             
-            <div id="auth-error" class="auth-error"></div>
-            <div id="auth-loading" class="auth-loading" style="display: none;">
-                <div class="spinner"></div>
-                <span>処理中...</span>
+            <div class="auth-footer">
+                <div class="divider">
+                    <span>または</span>
+                </div>
+                <div class="social-auth">
+                    <button class="social-btn google-btn" disabled>
+                        <span class="social-icon">🔗</span>
+                        <span>Googleでログイン（準備中）</span>
+                    </button>
+                </div>
+                <div class="auth-info">
+                    <p class="info-text">
+                        <span class="info-icon">🔒</span>
+                        お客様の情報は暗号化され、安全に保護されます
+                    </p>
+                </div>
+            </div>
+            
+            <div id="auth-error" class="auth-error">
+                <div class="error-icon">⚠️</div>
+                <div class="error-content">
+                    <div class="error-title">エラーが発生しました</div>
+                    <div class="error-message"></div>
+                </div>
+                <button class="error-close">&times;</button>
+            </div>
+            
+            <div id="auth-success" class="auth-success">
+                <div class="success-icon">✅</div>
+                <div class="success-content">
+                    <div class="success-title">成功しました</div>
+                    <div class="success-message"></div>
+                </div>
             </div>
         </div>
     `;
     
     document.body.appendChild(authModal);
-    setupAuthEvents();
+    setupAdvancedAuthEvents();
+    
+    // アニメーション
+    requestAnimationFrame(() => {
+        authModal.classList.add('show');
+    });
 }
 
-function setupAuthEvents() {
+// ===============================================
+// 高度な認証システム - イベントハンドラ
+// ===============================================
+function setupAdvancedAuthEvents() {
     // タブ切り替え
     document.querySelectorAll('.auth-tab').forEach(tab => {
         tab.addEventListener('click', () => {
             const targetTab = tab.dataset.tab;
-            
-            // タブの状態更新
-            document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            
-            // フォームの表示切り替え
-            document.querySelectorAll('.auth-form').forEach(form => form.classList.remove('active'));
-            document.getElementById(`${targetTab}-form`).classList.add('active');
-            
-            // エラーメッセージをクリア
-            document.getElementById('auth-error').textContent = '';
+            switchAuthTab(targetTab);
         });
     });
     
-    // ログインフォーム
-    document.getElementById('login-form').addEventListener('submit', handleLogin);
+    // パスワード表示切り替え
+    document.querySelectorAll('.password-toggle').forEach(toggle => {
+        toggle.addEventListener('click', () => {
+            const targetId = toggle.dataset.target;
+            const input = document.getElementById(targetId);
+            const icon = toggle.querySelector('.toggle-icon');
+            
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.textContent = '🙈';
+            } else {
+                input.type = 'password';
+                icon.textContent = '👁️';
+            }
+        });
+    });
     
-    // 新規登録フォーム
-    document.getElementById('register-form').addEventListener('submit', handleRegister);
+    // パスワード強度チェック
+    const registerPassword = document.getElementById('register-password');
+    if (registerPassword) {
+        registerPassword.addEventListener('input', () => {
+            updatePasswordStrength(registerPassword.value);
+        });
+    }
+    
+    // パスワード確認チェック
+    const passwordConfirm = document.getElementById('register-password-confirm');
+    if (passwordConfirm) {
+        passwordConfirm.addEventListener('input', () => {
+            validatePasswordConfirm();
+        });
+    }
+    
+    // リアルタイムバリデーション機能を設定
+    setupRealtimeValidation();
+    
+    // フォーム送信ハンドラ
+    const loginForm = document.getElementById('login-form');
+    const registerForm = document.getElementById('register-form');
+    
+    if (loginForm) {
+        loginForm.addEventListener('submit', handleAdvancedLogin);
+    }
+    if (registerForm) {
+        registerForm.addEventListener('submit', handleAdvancedRegister);
+    }
+    
+    // エラー表示の閉じるボタン
+    const errorClose = document.querySelector('.error-close');
+    if (errorClose) {
+        errorClose.addEventListener('click', hideAuthError);
+    }
+    
+    // モーダル背景クリックで閉じる（ログイン必須なので無効化）
+    // document.querySelector('.auth-modal-backdrop').addEventListener('click', hideAuthModal);
+    
+    // ESCキーでモーダルを閉じる（ログイン必須なので無効化）
+    // document.addEventListener('keydown', (e) => {
+    //     if (e.key === 'Escape') hideAuthModal();
+    // });
+}
+
+function switchAuthTab(tab) {
+    // タブの状態更新
+    document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+    document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+    
+    // フォームの表示切り替え
+    document.querySelectorAll('.auth-form').forEach(form => form.classList.remove('active'));
+    document.getElementById(`${tab}-form`).classList.add('active');
+    
+    // タイトルとサブタイトルの更新
+    const title = document.getElementById('auth-title');
+    const subtitle = document.getElementById('auth-subtitle');
+    
+    if (tab === 'login') {
+        title.textContent = 'アカウントにサインイン';
+        subtitle.textContent = 'タスク管理を始めるためにログインしてください';
+    } else {
+        title.textContent = '新しいアカウントを作成';
+        subtitle.textContent = 'PLINYでタスク管理を始めましょう';
+    }
+    
+    // エラーメッセージをクリア
+    hideAuthError();
+    hideAuthSuccess();
+    clearFieldErrors();
+}
+
+function setupRealtimeValidation() {
+    // メールアドレスのバリデーション
+    const emailInputs = ['login-email', 'register-email'];
+    emailInputs.forEach(inputId => {
+        const input = document.getElementById(inputId);
+        if (input) {
+            input.addEventListener('blur', () => validateEmail(input));
+            input.addEventListener('input', () => clearFieldError(input));
+        }
+    });
+    
+    // 名前のバリデーション
+    const nameInput = document.getElementById('register-name');
+    if (nameInput) {
+        nameInput.addEventListener('blur', () => validateName(nameInput));
+        nameInput.addEventListener('input', () => clearFieldError(nameInput));
+    }
+    
+    // パスワードのバリデーション
+    const passwordInputs = ['login-password', 'register-password'];
+    passwordInputs.forEach(inputId => {
+        const input = document.getElementById(inputId);
+        if (input) {
+            input.addEventListener('blur', () => validatePassword(input));
+            input.addEventListener('input', () => clearFieldError(input));
+        }
+    });
+}
+
+function validateEmail(input) {
+    const email = input.value.trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    
+    if (!email) {
+        showFieldError(input, 'メールアドレスを入力してください');
+        return false;
+    }
+    
+    if (!emailRegex.test(email)) {
+        showFieldError(input, '有効なメールアドレスを入力してください');
+        return false;
+    }
+    
+    clearFieldError(input);
+    return true;
+}
+
+function validateName(input) {
+    const name = input.value.trim();
+    
+    if (!name) {
+        showFieldError(input, '表示名を入力してください');
+        return false;
+    }
+    
+    if (name.length < 2) {
+        showFieldError(input, '表示名は2文字以上で入力してください');
+        return false;
+    }
+    
+    if (name.length > 50) {
+        showFieldError(input, '表示名は50文字以内で入力してください');
+        return false;
+    }
+    
+    clearFieldError(input);
+    return true;
+}
+
+function validatePassword(input) {
+    const password = input.value;
+    const isRegisterPassword = input.id === 'register-password';
+    
+    if (!password) {
+        showFieldError(input, 'パスワードを入力してください');
+        return false;
+    }
+    
+    if (isRegisterPassword) {
+        const strength = calculatePasswordStrength(password);
+        if (strength.score < 3) {
+            showFieldError(input, 'より強固なパスワードを設定してください');
+            return false;
+        }
+    } else {
+        if (password.length < 6) {
+            showFieldError(input, 'パスワードは6文字以上で入力してください');
+            return false;
+        }
+    }
+    
+    clearFieldError(input);
+    return true;
+}
+
+function validatePasswordConfirm() {
+    const password = document.getElementById('register-password').value;
+    const confirm = document.getElementById('register-password-confirm');
+    const confirmValue = confirm.value;
+    
+    if (!confirmValue) {
+        showFieldError(confirm, 'パスワード確認を入力してください');
+        return false;
+    }
+    
+    if (password !== confirmValue) {
+        showFieldError(confirm, 'パスワードが一致しません');
+        return false;
+    }
+    
+    clearFieldError(confirm);
+    return true;
+}
+
+function updatePasswordStrength(password) {
+    const strength = calculatePasswordStrength(password);
+    const strengthBar = document.querySelector('.strength-fill');
+    const strengthLevel = document.querySelector('.strength-level');
+    const requirements = document.querySelectorAll('.requirement');
+    
+    // 強度バーの更新
+    if (strengthBar) {
+        strengthBar.style.width = `${(strength.score / 5) * 100}%`;
+        strengthBar.className = `strength-fill strength-${strength.level}`;
+    }
+    
+    // 強度レベルの更新
+    if (strengthLevel) {
+        strengthLevel.textContent = strength.label;
+        strengthLevel.className = `strength-level strength-${strength.level}`;
+    }
+    
+    // 要件チェックの更新
+    requirements.forEach(req => {
+        const rule = req.dataset.rule;
+        if (strength.checks[rule]) {
+            req.classList.add('satisfied');
+        } else {
+            req.classList.remove('satisfied');
+        }
+    });
+}
+
+function calculatePasswordStrength(password) {
+    const checks = {
+        length: password.length >= 8,
+        uppercase: /[A-Z]/.test(password),
+        lowercase: /[a-z]/.test(password),
+        number: /\d/.test(password),
+        special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)
+    };
+    
+    const score = Object.values(checks).filter(Boolean).length;
+    
+    let level, label;
+    if (score <= 1) {
+        level = 'very-weak';
+        label = '非常に弱い';
+    } else if (score === 2) {
+        level = 'weak';
+        label = '弱い';
+    } else if (score === 3) {
+        level = 'medium';
+        label = '普通';
+    } else if (score === 4) {
+        level = 'strong';
+        label = '強い';
+    } else {
+        level = 'very-strong';
+        label = '非常に強い';
+    }
+    
+    return { score, level, label, checks };
 }
 
 // ===============================================
-// 認証関連関数
+// 高度な認証システム - メイン処理
 // ===============================================
-async function handleLogin(e) {
+async function handleAdvancedLogin(e) {
     e.preventDefault();
     
-    const email = document.getElementById('login-email').value.trim();
-    const password = document.getElementById('login-password').value;
-    
-    if (!email || !password) {
-        showAuthError('メールアドレスとパスワードを入力してください。');
+    // フォームバリデーション
+    if (!validateForm(true)) {
         return;
     }
     
-    showAuthLoading(true);
+    const modal = document.querySelector('.auth-modal');
+    const emailInput = modal.querySelector('#login-email');
+    const passwordInput = modal.querySelector('#login-password');
+    const rememberMeInput = modal.querySelector('input[name="rememberMe"]');
+    
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
+    const rememberMe = rememberMeInput ? rememberMeInput.checked : false;
+    
+    // ローディング状態開始
+    setFormLoading(true);
+    hideAuthError();
+    clearAllFieldErrors();
     
     try {
         const response = await fetch(`${WORKER_URL}/api/auth/login`, {
@@ -236,56 +1094,68 @@ async function handleLogin(e) {
         const result = await response.json();
         
         if (!response.ok) {
-            throw new Error(result.error || 'ログインに失敗しました');
+            // エラーレスポンスの分類とハンドリング
+            if (response.status === 401) {
+                showAuthError(...Object.values(AUTH_ERRORS.INVALID_CREDENTIALS));
+            } else if (response.status === 429) {
+                showAuthError(...Object.values(AUTH_ERRORS.RATE_LIMIT));
+            } else if (response.status >= 500) {
+                showAuthError(...Object.values(AUTH_ERRORS.SERVER_ERROR));
+            } else {
+                showAuthError('ログインエラー', result.error || '不明なエラーが発生しました');
+            }
+            return;
         }
         
-        // 認証情報を保存
-        currentUser.isAuthenticated = true;
-        currentUser.email = result.email;
-        currentUser.token = result.token;
-        currentUser.name = result.name;
+        // 認証成功
+        await handleAuthSuccess(result, rememberMe);
         
-        localStorage.setItem('pliny_auth_token', result.token);
-        localStorage.setItem('pliny_user_email', result.email);
-        localStorage.setItem('pliny_user_name', result.name);
+        // 成功メッセージ
+        showAuthSuccess('ログイン成功', 'PLINYへようこそ！');
         
-        // 認証モーダルを閉じてアプリを初期化
-        hideAuthModal();
-        showApp();
-        initializeApp();
-        updateAuthUI();
+        // 短い待機後にモーダルを閉じる
+        setTimeout(() => {
+            hideAuthModal();
+            showMainApp();
+            initializeApp();
+            updateAuthUI();
+        }, 1500);
         
     } catch (error) {
-        showAuthError(error.message);
+        console.error('Login error:', error);
+        
+        // ネットワークエラーのハンドリング
+        if (error.name === 'TypeError' || error.message.includes('fetch')) {
+            showAuthError(...Object.values(AUTH_ERRORS.NETWORK_ERROR));
+        } else {
+            showAuthError('ログインエラー', error.message || '予期しないエラーが発生しました');
+        }
     } finally {
-        showAuthLoading(false);
+        setFormLoading(false);
     }
 }
 
-async function handleRegister(e) {
+async function handleAdvancedRegister(e) {
     e.preventDefault();
     
-    const name = document.getElementById('register-name').value.trim();
-    const email = document.getElementById('register-email').value.trim();
-    const password = document.getElementById('register-password').value;
-    const passwordConfirm = document.getElementById('register-password-confirm').value;
-    
-    if (!name || !email || !password || !passwordConfirm) {
-        showAuthError('すべての項目を入力してください。');
+    // フォームバリデーション
+    if (!validateForm(false)) {
         return;
     }
     
-    if (password !== passwordConfirm) {
-        showAuthError('パスワードが一致しません。');
-        return;
-    }
+    const modal = document.querySelector('.auth-modal');
+    const nameInput = modal.querySelector('#register-name');
+    const emailInput = modal.querySelector('#register-email');
+    const passwordInput = modal.querySelector('#register-password');
     
-    if (password.length < 6) {
-        showAuthError('パスワードは6文字以上で入力してください。');
-        return;
-    }
+    const name = nameInput.value.trim();
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
     
-    showAuthLoading(true);
+    // ローディング状態開始
+    setFormLoading(true);
+    hideAuthError();
+    clearAllFieldErrors();
     
     try {
         const response = await fetch(`${WORKER_URL}/api/auth/register`, {
@@ -297,64 +1167,157 @@ async function handleRegister(e) {
         const result = await response.json();
         
         if (!response.ok) {
-            throw new Error(result.error || 'アカウント作成に失敗しました');
+            // エラーレスポンスの分類とハンドリング
+            if (response.status === 409) {
+                showAuthError(...Object.values(AUTH_ERRORS.EMAIL_EXISTS));
+            } else if (response.status === 429) {
+                showAuthError(...Object.values(AUTH_ERRORS.RATE_LIMIT));
+            } else if (response.status >= 500) {
+                showAuthError(...Object.values(AUTH_ERRORS.SERVER_ERROR));
+            } else {
+                showAuthError('登録エラー', result.error || '不明なエラーが発生しました');
+            }
+            return;
         }
         
-        // 認証情報を保存
-        currentUser.isAuthenticated = true;
-        currentUser.email = result.email;
-        currentUser.token = result.token;
-        currentUser.name = result.name;
+        // 認証成功
+        await handleAuthSuccess(result, true); // 新規登録時は自動的に状態を保持
         
-        localStorage.setItem('pliny_auth_token', result.token);
-        localStorage.setItem('pliny_user_email', result.email);
-        localStorage.setItem('pliny_user_name', result.name);
+        // 成功メッセージ
+        showAuthSuccess('アカウント作成成功', `ようこそ、${result.name}さん！PLINYへの登録が完了しました。`);
         
-        // 認証モーダルを閉じてアプリを初期化
-        hideAuthModal();
-        showApp();
-        initializeApp();
-        updateAuthUI();
+        // 短い待機後にモーダルを閉じる
+        setTimeout(() => {
+            hideAuthModal();
+            showMainApp();
+            initializeApp();
+            updateAuthUI();
+        }, 2000);
         
     } catch (error) {
-        showAuthError(error.message);
+        console.error('Register error:', error);
+        
+        // ネットワークエラーのハンドリング
+        if (error.name === 'TypeError' || error.message.includes('fetch')) {
+            showAuthError(...Object.values(AUTH_ERRORS.NETWORK_ERROR));
+        } else {
+            showAuthError('登録エラー', error.message || '予期しないエラーが発生しました');
+        }
     } finally {
-        showAuthLoading(false);
+        setFormLoading(false);
     }
 }
 
-function showAuthError(message) {
+async function handleAuthSuccess(result, rememberMe = false) {
+    // 認証情報を保存
+    currentUser.isAuthenticated = true;
+    currentUser.email = result.email;
+    currentUser.token = result.token;
+    currentUser.name = result.name;
+    currentUser.id = result.id;
+    
+    // ローカルストレージに保存
+    localStorage.setItem('pliny_auth_token', result.token);
+    localStorage.setItem('pliny_user_email', result.email);
+    localStorage.setItem('pliny_user_name', result.name);
+    localStorage.setItem('pliny_user_id', result.id);
+    
+    if (rememberMe) {
+        localStorage.setItem('pliny_remember_me', 'true');
+        // より長い有効期限を設定（実装によって異なる）
+    }
+    
+    // セッション情報の更新
+    localStorage.setItem('pliny_login_time', new Date().toISOString());
+}
+
+function setButtonLoading(button, loading) {
+    const btnContent = button.querySelector('.btn-content');
+    const btnLoading = button.querySelector('.btn-loading');
+    
+    if (loading) {
+        btnContent.style.display = 'none';
+        btnLoading.style.display = 'flex';
+        button.disabled = true;
+    } else {
+        btnContent.style.display = 'flex';
+        btnLoading.style.display = 'none';
+        button.disabled = false;
+    }
+}
+
+function showAuthError(title, message) {
     const errorElement = document.getElementById('auth-error');
     if (errorElement) {
-        errorElement.textContent = message;
-        errorElement.style.display = 'block';
+        const errorTitle = errorElement.querySelector('.error-title');
+        const errorMessage = errorElement.querySelector('.error-message');
+        
+        if (errorTitle) errorTitle.textContent = title;
+        if (errorMessage) errorMessage.textContent = message;
+        
+        errorElement.style.display = 'flex';
+        
+        // 自動的に隠す
+        setTimeout(() => {
+            hideAuthError();
+        }, 8000);
     }
 }
 
-function showAuthLoading(show) {
-    const loadingElement = document.getElementById('auth-loading');
-    if (loadingElement) {
-        loadingElement.style.display = show ? 'flex' : 'none';
+function showAuthSuccess(title, message) {
+    const successElement = document.getElementById('auth-success');
+    if (successElement) {
+        const successTitle = successElement.querySelector('.success-title');
+        const successMessage = successElement.querySelector('.success-message');
+        
+        if (successTitle) successTitle.textContent = title;
+        if (successMessage) successMessage.textContent = message;
+        
+        successElement.style.display = 'flex';
+    }
+}
+
+function hideAuthError() {
+    const errorElement = document.getElementById('auth-error');
+    if (errorElement) {
+        errorElement.style.display = 'none';
+    }
+}
+
+function hideAuthSuccess() {
+    const successElement = document.getElementById('auth-success');
+    if (successElement) {
+        successElement.style.display = 'none';
     }
 }
 
 function hideAuthModal() {
     const authModal = document.getElementById('auth-modal');
     if (authModal) {
-        authModal.remove();
+        authModal.classList.add('hiding');
+        setTimeout(() => {
+            authModal.remove();
+        }, 300);
     }
 }
 
-function showApp() {
-    const appContainer = document.getElementById('app-container');
-    if (appContainer) {
-        appContainer.style.display = 'block';
+function showMainApp() {
+    const rightPane = document.getElementById('right-pane');
+    if (rightPane) {
+        rightPane.style.display = 'block';
     }
+    updateAuthUI();
+    
+    // アコーディオンイベントを再初期化
+    setTimeout(() => {
+        bindAccordionEvents();
+        console.log('メインアプリ表示後にアコーディオンイベントを再初期化しました');
+    }, 100);
 }
 
 async function logout() {
     try {
-        // サーバーに対してログアウトリクエストを送信（必要に応じて）
+        // サーバーに対してログアウトリクエストを送信
         if (currentUser.token) {
             await fetch(`${WORKER_URL}/api/auth/logout`, {
                 method: 'POST',
@@ -382,8 +1345,15 @@ async function logout() {
     tasks = [];
     labels = [];
     
+    // UI をリセット
+    const taskContainer = document.getElementById('task-list-container');
+    if (taskContainer) taskContainer.innerHTML = '';
+    
     // 認証画面を表示
     showAuthInterface();
+    updateAuthUI();
+    
+    alert('ログアウトしました。');
 }
 
 function initializeFlatpickr() {
@@ -1627,29 +2597,89 @@ function setupMobileOptimizations() {
 }
 
 function bindAccordionEvents() {
-    document.querySelectorAll('.accordion-toggle').forEach(btn => {
-        // イベントリスナーが重複しないように、一度削除してから再設定する
-        const newBtn = btn.cloneNode(true);
-        btn.parentNode.replaceChild(newBtn, btn);
-        newBtn.addEventListener('click', function () { 
-            this.classList.toggle('active');
-            const content = this.nextElementSibling;
-            
-            // スムーズなアニメーション
-            if (content.style.display === 'flex' || content.style.display === 'block') {
-                content.style.display = 'none';
-            } else {
-                content.style.display = 'flex';
+    // すべてのアコーディオントグル要素を取得（button要素とdiv要素の両方）
+    const accordionToggles = document.querySelectorAll('.accordion-toggle');
+    
+    console.log(`アコーディオンToggle要素数: ${accordionToggles.length}`);
+    
+    accordionToggles.forEach((toggle, index) => {
+        console.log(`アコーディオン ${index + 1}: タグ=${toggle.tagName}, クラス=${toggle.className}`);
+        
+        // 既存のイベントリスナーを削除してから新しいものを追加
+        const newToggle = toggle.cloneNode(true);
+        toggle.parentNode.replaceChild(newToggle, toggle);
+        
+        // クリックイベントとタッチイベントの両方に対応
+        ['click', 'touchend'].forEach(eventType => {
+            newToggle.addEventListener(eventType, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
                 
-                // モバイルでスクロール調整
-                if (isMobile()) {
-                    setTimeout(() => {
-                        this.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }, 100);
+                console.log(`アコーディオンがクリックされました (${eventType}):`, this);
+                
+                // activeクラスをトグル
+                this.classList.toggle('active');
+                
+                // 次の兄弟要素（アコーディオンコンテンツ）を取得
+                let content = this.nextElementSibling;
+                
+                // nextElementSiblingが見つからない場合、同じ親内の.accordion-contentを探す
+                if (!content || !content.classList.contains('accordion-content')) {
+                    const parent = this.closest('.accordion');
+                    if (parent) {
+                        content = parent.querySelector('.accordion-content');
+                    }
                 }
-            }
+                
+                if (content && content.classList.contains('accordion-content')) {
+                    console.log('コンテンツ要素を見つけました:', content);
+                    
+                    // 現在の表示状態を確認
+                    const isCurrentlyVisible = content.style.display === 'flex' || 
+                                             content.style.display === 'block' || 
+                                             content.classList.contains('active') ||
+                                             getComputedStyle(content).display !== 'none';
+                    
+                    console.log('現在の表示状態:', isCurrentlyVisible);
+                    
+                    if (isCurrentlyVisible) {
+                        // 閉じる
+                        content.style.display = 'none';
+                        content.classList.remove('active');
+                        this.classList.remove('active');
+                        console.log('アコーディオンを閉じました');
+                    } else {
+                        // 開く
+                        content.style.display = 'flex';
+                        content.classList.add('active');
+                        this.classList.add('active');
+                        console.log('アコーディオンを開きました');
+                        
+                        // モバイルでのスクロール調整
+                        if (window.innerWidth <= 768) {
+                            setTimeout(() => {
+                                this.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }, 100);
+                        }
+                    }
+                    
+                    // アイコンの向きを更新
+                    const icon = this.querySelector('.accordion-icon');
+                    if (icon) {
+                        icon.style.transform = this.classList.contains('active') ? 'rotate(-135deg)' : 'rotate(45deg)';
+                    }
+                } else {
+                    console.error('コンテンツ要素が見つかりません。', {
+                        nextElementSibling: this.nextElementSibling,
+                        parentAccordion: this.closest('.accordion'),
+                        allContent: this.closest('.accordion') ? this.closest('.accordion').querySelectorAll('.accordion-content') : 'no parent'
+                    });
+                }
+            });
         });
     });
+    
+    console.log('アコーディオンイベントのバインドが完了しました');
 }
 
 function switchView(view) {
