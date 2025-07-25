@@ -279,12 +279,12 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
     padding: 16px; display: none; flex-direction: column;
     gap: 14px; border-top: 1px solid var(--border-color);
 }
-.accordion-toggle.active + .accordion-content { display: flex; }
+.accordion.active .accordion-content { display: flex; }
 .accordion-icon {
     border: solid var(--text-secondary); border-width: 0 2px 2px 0;
     display: inline-block; padding: 3px; transform: rotate(45deg); transition: transform 0.2s;
 }
-.accordion-toggle.active .accordion-icon { transform: rotate(-135deg); }
+.accordion.active .accordion-icon { transform: rotate(-135deg); }
 #gemini-prompt {
     min-height: 80px;
     resize: none;
@@ -1109,7 +1109,7 @@ button:disabled {
 }
 
 
-/* ★★★ ラベル編集モーダル専用スタイル ★★★ */
+/* ラベル編集モーダル専用スタイル */
 #modal-label-list {
     display: flex;
     flex-direction: column;
@@ -1183,4 +1183,49 @@ button:disabled {
 button.secondary {
     background-color: #e5e5ea;
     color: var(--text-primary);
+}
+
+/* ★★★ Googleカレンダー連携UI用スタイル ★★★ */
+#google-sync-status {
+    font-size: 14px;
+    margin-bottom: 12px;
+    padding: 10px;
+    border-radius: var(--radius-md);
+    transition: all 0.3s;
+}
+
+#google-sync-status.disconnected {
+    background-color: #f8f9fa;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+}
+
+#google-sync-status.connected {
+    background-color: var(--primary-light);
+    color: var(--primary);
+    font-weight: 500;
+}
+
+#google-sync-status.syncing {
+    background-color: #fffbe6;
+    color: #b45309;
+    font-weight: 500;
+}
+
+#google-sync-status.error {
+    background-color: #ffebee;
+    color: var(--danger);
+    font-weight: 500;
+}
+
+button.danger {
+    background-color: transparent;
+    border: 1px solid var(--danger);
+    color: var(--danger);
+}
+
+button.danger:hover:not(:disabled) {
+    background-color: var(--danger);
+    color: var(--text-on-primary);
+    opacity: 1;
 }

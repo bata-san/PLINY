@@ -1,17 +1,10 @@
 // ===============================================
 // 定数
 // ===============================================
-const WORKER_URL = "https://pliny-worker.youguitest.workers.dev"; // あなたのWorkerのURLに書き換えてください
+const WORKER_URL = ""; // ★★★ あなたのWorkerのURLに書き換えてください ★★★
 const PRESET_COLORS = [
-  "#007aff",
-  "#ff9500",
-  "#34c759",
-  "#ff3b30",
-  "#af52de",
-  "#5856d6",
-  "#ff2d55",
-  "#ffcc00",
-  "#8e8e93",
+  "#007aff", "#ff9500", "#34c759", "#ff3b30", "#af52de",
+  "#5856d6", "#ff2d55", "#ffcc00", "#8e8e93",
 ];
 const ICONS = {
   delete: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`,
@@ -34,6 +27,7 @@ let redoStack = [];
 let currentDataVersion = null;
 let authToken = null;
 let userEmail = null;
+let isGoogleConnected = false; // ★★★ Googleカレンダー連携状態
 
 let saveDataDebounceTimer = null;
 let changedItems = {
@@ -74,7 +68,6 @@ async function handleLogin(e) {
   e.preventDefault();
   const email = document.getElementById("login-email").value;
   const password = document.getElementById("login-password").value;
-
   try {
     const res = await fetch(`${WORKER_URL}/api/auth/login`, {
       method: "POST",
@@ -83,7 +76,6 @@ async function handleLogin(e) {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "ログインに失敗しました。");
-
     saveToken(data.token, data.email);
     initializeApp();
   } catch (err) {
@@ -95,7 +87,6 @@ async function handleRegister(e) {
   e.preventDefault();
   const email = document.getElementById("register-email").value;
   const password = document.getElementById("register-password").value;
-
   try {
     const res = await fetch(`${WORKER_URL}/api/auth/register`, {
       method: "POST",
@@ -104,7 +95,6 @@ async function handleRegister(e) {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "登録に失敗しました。");
-
     showAuthMessage(data.message, "success");
     document.getElementById("register-form").style.display = "none";
     document.getElementById("login-form").style.display = "block";
@@ -121,6 +111,7 @@ function handleLogout() {
   undoStack = [];
   redoStack = [];
   currentDataVersion = null;
+  isGoogleConnected = false;
   clearTrackedChanges();
   clearTimeout(saveDataDebounceTimer);
   document.getElementById("app-container").style.display = "none";
@@ -130,9 +121,7 @@ function handleLogout() {
 async function fetchWithAuth(url, options = {}) {
   const headers = { ...options.headers, "Content-Type": "application/json" };
   if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
-
   const res = await fetch(url, { ...options, headers });
-
   if (res.status === 401) {
     handleLogout();
     throw new Error("認証が切れました。再度ログインしてください。");
@@ -144,6 +133,14 @@ async function fetchWithAuth(url, options = {}) {
 // 初期化処理
 // ===============================================
 document.addEventListener("DOMContentLoaded", () => {
+  // ★★★ Google認証からのリダイレクト時にURLのクエリパラメータをチェック
+  const queryParams = new URLSearchParams(window.location.search);
+  if (queryParams.has('google_auth_success')) {
+      alert('Googleアカウントとの連携に成功しました！');
+      // クリーンなURLに戻す
+      window.history.replaceState({}, document.title, window.location.pathname);
+  }
+
   loadToken();
   if (authToken) {
     initializeApp();
@@ -174,7 +171,6 @@ function initializeApp() {
   document.getElementById("auth-overlay").style.display = "none";
   document.getElementById("app-container").style.display = "flex";
   document.getElementById("user-email-display").textContent = userEmail;
-
   initializeFlatpickr();
   initializeCalendar();
   initializeIcons();
@@ -229,8 +225,10 @@ async function loadData() {
     currentDataVersion = data.version;
     tasks = Array.isArray(data.tasks) ? data.tasks.map(normalizeTask) : [];
     labels = Array.isArray(data.labels) ? data.labels : [];
+    isGoogleConnected = data.isGoogleConnected || false;
     clearTrackedChanges();
     renderAll();
+    updateGoogleSyncUI();
   } catch (e) {
     alert("データの読み込みに失敗しました: " + e.message);
   } finally {
@@ -241,7 +239,6 @@ async function loadData() {
 // ===============================================
 // データ保存ロジック (差分更新 + デバウンス)
 // ===============================================
-
 function updateSaveStatus(status, message = "") {
   const indicator = document.getElementById("save-status-indicator");
   if (!indicator) return;
@@ -313,7 +310,6 @@ async function sendChangesToServer() {
       body: JSON.stringify(patch),
     });
     if (res.status === 409) {
-        // この一般的な競合はモーダルで表示
         document.getElementById("conflict-modal").style.display = "flex";
         document.getElementById("conflict-modal-ok-btn").onclick = () => {
             document.getElementById("conflict-modal").style.display = "none";
@@ -339,7 +335,7 @@ function scheduleSave() {
   saveDataDebounceTimer = setTimeout(sendChangesToServer, 2000);
 }
 
-async function forceSaveAllData(state) {
+async function forceSaveAllData(state, source = "internal") {
     clearTimeout(saveDataDebounceTimer);
     updateSaveStatus('saving', 'データを同期中...');
     try {
@@ -349,6 +345,7 @@ async function forceSaveAllData(state) {
                 tasks: state.tasks.map(normalizeTask).filter(Boolean),
                 labels: state.labels,
                 expectedVersion: currentDataVersion,
+                source: source,
             }),
         });
         if (res.status === 409) {
@@ -370,6 +367,102 @@ async function forceSaveAllData(state) {
     } catch (error) {
         alert(`データの同期に失敗しました: ${error.message}`);
         updateSaveStatus('error');
+    }
+}
+
+// ===============================================
+// ★★★ Googleカレンダー連携処理 (手動同期モデル) ★★★
+// ===============================================
+function updateGoogleSyncUI(status = null, message = '') {
+    const statusEl = document.getElementById('google-sync-status');
+    const connectBtn = document.getElementById('google-connect-btn');
+    const syncBtn = document.getElementById('google-sync-btn');
+    const disconnectBtn = document.getElementById('google-disconnect-btn');
+    if (!statusEl || !connectBtn || !syncBtn || !disconnectBtn) return;
+
+    const allButtons = [connectBtn, syncBtn, disconnectBtn];
+    allButtons.forEach(btn => btn.style.display = 'none');
+    
+    if (status === 'syncing') {
+        statusEl.className = 'syncing';
+        statusEl.textContent = message || 'Googleカレンダーと同期中...';
+        syncBtn.style.display = 'block';
+        syncBtn.disabled = true;
+    } else if (status === 'error') {
+        statusEl.className = 'error';
+        statusEl.textContent = message || '同期中にエラーが発生しました。';
+        syncBtn.style.display = 'block';
+        disconnectBtn.style.display = 'block';
+        syncBtn.disabled = false;
+    } else if (isGoogleConnected) {
+        statusEl.className = 'connected';
+        statusEl.textContent = 'Googleカレンダーと連携済みです。';
+        syncBtn.style.display = 'block';
+        disconnectBtn.style.display = 'block';
+        syncBtn.disabled = false;
+    } else {
+        statusEl.className = 'disconnected';
+        statusEl.textContent = 'Googleカレンダーと連携していません。';
+        connectBtn.style.display = 'block';
+    }
+}
+
+async function handleGoogleConnect() {
+    // ユーザーをバックエンドの認証URLにリダイレクトさせる
+    // stateパラメータにJWTトークンを渡し、コールバック時にユーザーを特定できるようにする
+    const res = await fetchWithAuth(`${WORKER_URL}/api/auth/google/redirect-url`);
+    const data = await res.json();
+    if (res.ok && data.url) {
+        window.location.href = data.url;
+    } else {
+        alert('Google認証URLの取得に失敗しました。');
+    }
+}
+
+async function handleGoogleDisconnect() {
+    if (!confirm('Googleカレンダーとの連携を解除しますか？\nPLINY上のタスクは削除されませんが、カレンダーとの同期は停止します。')) return;
+    try {
+        const res = await fetchWithAuth(`${WORKER_URL}/api/auth/google/disconnect`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        isGoogleConnected = false;
+        tasks.forEach(t => { 
+            t.googleEventId = null;
+            t.googleSyncTimestamp = null;
+        });
+        renderAll();
+        updateGoogleSyncUI();
+        alert('連携を解除しました。');
+    } catch (err) {
+        alert('連携の解除に失敗しました: ' + err.message);
+    }
+}
+
+async function handleGoogleSync() {
+    updateGoogleSyncUI('syncing');
+    try {
+        const res = await fetchWithAuth(`${WORKER_URL}/api/sync/google`, { method: 'POST' });
+        if (!res.ok) {
+            const errData = await res.json();
+            throw new Error(errData.error || '同期中に不明なエラーが発生しました。');
+        }
+        const syncResult = await res.json();
+
+        // サーバーからの最新データでフロントエンドを完全に更新
+        tasks = syncResult.tasks.map(normalizeTask);
+        labels = syncResult.labels;
+        currentDataVersion = syncResult.version;
+        isGoogleConnected = syncResult.isGoogleConnected;
+        
+        clearTrackedChanges();
+        pushToUndoStack(); // 同期後の状態をUndoスタックに保存
+        renderAll();
+        updateGoogleSyncUI();
+        updateSaveStatus('saved', '同期が完了しました');
+
+    } catch (err) {
+        alert('同期に失敗しました: ' + err.message);
+        updateGoogleSyncUI('error', '同期に失敗しました。');
     }
 }
 
@@ -414,7 +507,7 @@ function renderTaskList() {
             <div class="task-card-main">
                 <div class="task-toggle ${hasChildren ? "" : "hidden"} ${isCollapsed ? "" : "collapsed"}" data-action="toggle">${ICONS.chevron}</div>
                 <div class="task-content-wrapper">
-                    <span class="task-text">${(node.text || "").replace(/</g, "<")}</span>
+                    <span class="task-text">${(node.text || "").replace(/</g, "&lt;")}</span>
                     <div class="task-meta">
                         <div class="task-labels">${(node.labelIds || [])
                           .map((id) => labels.find((l) => l.id.toString() === id.toString()))
@@ -462,6 +555,9 @@ function renderCalendar() {
         allDay: true,
         backgroundColor: eventColor,
         borderColor: eventColor,
+        extendedProps: {
+            googleEventId: task.googleEventId || null
+        }
       };
     })
     .filter(Boolean);
@@ -618,19 +714,13 @@ function closeAllPopovers() {
 }
 
 // ===============================================
-// ★★★ ラベル編集モーダル関連 (新規・修正) ★★★
+// ラベル編集モーダル関連
 // ===============================================
-/**
- * ラベル編集モーダルを開く
- * @param {object} taskToEdit - 編集対象のタスクオブジェクト
- */
 function openLabelEditorModal(taskToEdit) {
     const modal = document.getElementById('label-editor-modal');
     if (!modal) return;
-
     modal.dataset.taskId = taskToEdit.id;
     document.getElementById('modal-task-name').textContent = taskToEdit.text;
-
     const listContainer = document.getElementById('modal-label-list');
     listContainer.innerHTML = '';
     labels
@@ -646,7 +736,6 @@ function openLabelEditorModal(taskToEdit) {
             `;
             listContainer.appendChild(item);
         });
-    
     modal.style.display = 'flex';
 }
 
@@ -655,72 +744,15 @@ function closeLabelEditorModal() {
     if (modal) modal.style.display = 'none';
 }
 
-/**
- * タスクのラベル変更を保存（自動リトライ付き）
- * @param {string} taskId - 対象タスクのID
- * @param {string[]} newLabelIds - 新しいラベルIDの配列
- * @param {number} retryCount - リトライ回数（内部使用）
- */
-async function saveTaskLabelChanges(taskId, newLabelIds, retryCount = 0) {
-    if (retryCount > 2) { // 3回失敗したら諦める
-        alert("サーバーとの同期に繰り返し失敗しました。ページをリロードしてください。");
-        updateSaveStatus('error');
-        return;
-    }
-    
+async function saveTaskLabelChanges(taskId, newLabelIds) {
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
-
     pushToUndoStack();
     task.labelIds = newLabelIds;
     trackChange('task', 'updated', taskId);
-
-    // デバウンスをキャンセルして即時保存
-    clearTimeout(saveDataDebounceTimer);
-    updateSaveStatus('saving');
-    
-    const patch = {
-        tasks: { updated: [task] },
-        labels: {},
-        expectedVersion: currentDataVersion,
-    };
-
-    try {
-        const res = await fetchWithAuth(`${WORKER_URL}/api/data`, {
-            method: "PATCH",
-            body: JSON.stringify(patch),
-        });
-
-        if (res.status === 409) {
-            // ★★★ 競合発生！自動リトライ処理 ★★★
-            console.warn("Conflict detected. Retrying label update...");
-            // 1. 最新データを取得
-            const latestDataRes = await fetchWithAuth(`${WORKER_URL}/api/data`);
-            const latestData = await latestDataRes.json();
-            // 2. ローカルデータを更新
-            tasks = latestData.tasks.map(normalizeTask);
-            labels = latestData.labels;
-            currentDataVersion = latestData.version;
-            // 3. 変更を再適用してリトライ
-            await saveTaskLabelChanges(taskId, newLabelIds, retryCount + 1);
-            return; // リトライに任せるのでここで終了
-        }
-
-        if (!res.ok) throw new Error((await res.json()).error || "保存失敗");
-
-        const result = await res.json();
-        currentDataVersion = result.version;
-        clearTrackedChanges(); // 今回の変更は保存されたのでクリア
-        renderAll(); // UIを最新の状態に
-        updateSaveStatus('saved');
-        closeLabelEditorModal();
-
-    } catch (error) {
-        updateSaveStatus('error');
-        alert(`ラベルの保存に失敗しました: ${error.message}`);
-    }
+    scheduleSave();
+    closeLabelEditorModal();
 }
-
 
 // ===============================================
 // ヘルパー関数
@@ -738,6 +770,8 @@ function normalizeTask(task) {
     labelIds: Array.isArray(task.labelIds) ? task.labelIds : [],
     parentId: task.parentId || null,
     isCollapsed: task.isCollapsed ?? true,
+    googleEventId: task.googleEventId || null,
+    googleSyncTimestamp: task.googleSyncTimestamp || null,
   };
 }
 
@@ -770,7 +804,6 @@ function bindGlobalEvents() {
     if (!e.target.closest('.popover, #label-editor-modal .modal-content')) closeAllPopovers();
   });
   document.getElementById("logout-btn").addEventListener("click", handleLogout);
-
   bindAccordionEvents();
   setupTaskFormEvents();
   setupTaskListEvents();
@@ -779,8 +812,8 @@ function bindGlobalEvents() {
   setupAiEvents();
   setupDataManagerEvents();
   setupWindowEvents();
-  // ★★★ ラベル編集モーダルのイベントをバインド
   setupLabelEditorModalEvents();
+  setupGoogleSyncEvents(); // ★★★ Google連携用のイベントリスナーをセットアップ
 }
 
 function setupTaskFormEvents() {
@@ -823,12 +856,13 @@ function setupTaskListEvents() {
     if (!task) return;
 
     let shouldScheduleSave = false;
+    let shouldRender = false;
 
     switch (actionTarget.dataset.action) {
       case "toggle":
         task.isCollapsed = !task.isCollapsed;
-        trackChange('task', 'updated', task.id);
-        shouldScheduleSave = true;
+        shouldRender = true;
+        // isCollapsedはローカルの状態なのでサーバーに保存する必要はない
         break;
       case "complete":
         pushToUndoStack();
@@ -838,7 +872,7 @@ function setupTaskListEvents() {
         break;
       case "edit-labels":
         e.stopPropagation();
-        openLabelEditorModal(task); // ★★★ ここを変更
+        openLabelEditorModal(task);
         break;
       case "delete":
         pushToUndoStack();
@@ -853,25 +887,21 @@ function setupTaskListEvents() {
       default: break;
     }
     if (shouldScheduleSave) scheduleSave();
-    else renderAll();
+    else if (shouldRender) renderAll();
   });
   setupDragAndDropEvents(container);
 }
 
-// ★★★ ラベル編集モーダルのイベントリスナーをセットアップ
 function setupLabelEditorModalEvents() {
     const modal = document.getElementById('label-editor-modal');
     if(!modal) return;
-
     document.getElementById('label-editor-modal-close').addEventListener('click', closeLabelEditorModal);
     document.getElementById('label-editor-modal-cancel').addEventListener('click', closeLabelEditorModal);
-
     document.getElementById('label-editor-modal-save').addEventListener('click', () => {
         const taskId = modal.dataset.taskId;
         const selectedLabelIds = Array.from(modal.querySelectorAll('#modal-label-list input:checked')).map(input => input.value);
         saveTaskLabelChanges(taskId, selectedLabelIds);
     });
-
     document.getElementById('modal-add-new-label-btn').addEventListener('click', () => {
         const nameInput = document.getElementById('modal-new-label-name');
         const name = nameInput.value.trim();
@@ -885,13 +915,10 @@ function setupLabelEditorModalEvents() {
             };
             labels.push(newLabel);
             trackChange('label', 'created', newLabel.id);
-            
-            // モーダル内のリストを再描画して、新しいラベルを即座に表示・選択可能にする
             const task = tasks.find(t => t.id === modal.dataset.taskId);
             if (task) openLabelEditorModal(task);
-            
             nameInput.value = '';
-            scheduleSave(); // 新規ラベルを保存
+            scheduleSave();
         }
     });
 }
@@ -920,10 +947,8 @@ function setupDragAndDropEvents(container) {
     const draggedId = e.dataTransfer.getData("text/plain");
     const targetId = targetCard.dataset.taskId;
     if (draggedId === targetId) return;
-
     const draggedTask = tasks.find((t) => t.id === draggedId);
     if (!draggedTask) return;
-
     let p = tasks.find((t) => t.id === targetId);
     while (p) {
       if (p.id === draggedId) {
@@ -932,15 +957,13 @@ function setupDragAndDropEvents(container) {
       }
       p = tasks.find((t) => t.id === p.parentId);
     }
-
     pushToUndoStack();
     draggedTask.parentId = targetId;
     trackChange('task', 'updated', draggedTask.id);
-    
     const targetTask = tasks.find((t) => t.id === targetId);
     if (targetTask) {
         targetTask.isCollapsed = false;
-        trackChange('task', 'updated', targetTask.id);
+        // isCollapsedの変更はサーバーに保存しない
     }
     scheduleSave();
   });
@@ -978,13 +1001,19 @@ function setupDataManagerEvents() {
           importedState = {tasks: data.tasks, labels: data.labels};
         }
         alert("インポートが完了しました。データを同期します。");
-        await forceSaveAllData(importedState);
+        await forceSaveAllData(importedState, 'import');
       } catch (e) {
         alert(`インポート失敗: ${e.message}`);
       }
     };
     reader.readAsText(fileInput.files[0]);
   });
+}
+
+function setupGoogleSyncEvents() {
+    document.getElementById('google-connect-btn')?.addEventListener('click', handleGoogleConnect);
+    document.getElementById('google-sync-btn')?.addEventListener('click', handleGoogleSync);
+    document.getElementById('google-disconnect-btn')?.addEventListener('click', handleGoogleDisconnect);
 }
 
 function setupAiEvents() {
@@ -1029,17 +1058,8 @@ function bindAccordionEvents() {
     if (!toggleButton) return;
     const currentAccordion = toggleButton.closest(".accordion");
     if (!currentAccordion) return;
-    const isMobileView = window.innerWidth <= 768;
-    if (isMobileView) {
-      document.querySelectorAll(".accordion").forEach((accordion) => {
-        if (accordion !== currentAccordion) {
-          accordion.classList.remove("active");
-          accordion.querySelector(".accordion-content").style.display = "none";
-        }
-      });
-    }
-    const content = currentAccordion.querySelector(".accordion-content");
     const isActive = currentAccordion.classList.toggle("active");
+    const content = currentAccordion.querySelector(".accordion-content");
     content.style.display = isActive ? "flex" : "none";
   });
 }
@@ -1113,7 +1133,7 @@ async function handleUndo() {
   if (undoStack.length === 0) return;
   redoStack.push(JSON.parse(JSON.stringify({ tasks, labels })));
   const prevState = undoStack.pop();
-  await forceSaveAllData(prevState);
+  await forceSaveAllData(prevState, 'undo');
   updateUndoRedoButtons();
 }
 
@@ -1121,7 +1141,7 @@ async function handleRedo() {
   if (redoStack.length === 0) return;
   undoStack.push(JSON.parse(JSON.stringify({ tasks, labels })));
   const nextState = redoStack.pop();
-  await forceSaveAllData(nextState);
+  await forceSaveAllData(nextState, 'redo');
   updateUndoRedoButtons();
 }
 
@@ -1141,13 +1161,13 @@ async function handleAiInteraction() {
     if (!res.ok) throw new Error((await res.json()).error || `AI APIエラー`);
     const data = await res.json();
     const newState = { tasks: data.tasks || tasks, labels: data.labels || labels };
-    await forceSaveAllData(newState);
+    await forceSaveAllData(newState, 'ai');
     document.getElementById("gemini-prompt").value = "";
   } catch (error) {
     alert("AIアシスタントの処理中にエラーが発生しました: " + error.message);
     if(undoStack.length > 0){
         const prevState = undoStack.pop();
-        await forceSaveAllData(prevState);
+        await forceSaveAllData(prevState, 'ai-revert');
     }
   } finally {
     geminiBtn.disabled = false;

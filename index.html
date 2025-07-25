@@ -134,6 +134,16 @@
                             </label>
                             <button id="import-json-btn" class="button primary">インポート</button>
                         </div>
+                        <!-- ★★★ Googleカレンダー連携UIを追加 ★★★ -->
+                        <div class="data-manager-section">
+                            <h4>Googleカレンダー連携</h4>
+                            <div id="google-sync-status">
+                                <!-- 状態はスクリプトで動的に設定されます -->
+                            </div>
+                            <button id="google-connect-btn" class="button secondary" style="display: none;">Googleカレンダーと連携</button>
+                            <button id="google-sync-btn" class="button primary" style="display: none;">今すぐ同期</button>
+                            <button id="google-disconnect-btn" class="button danger" style="display: none;">連携を解除</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -169,7 +179,7 @@
         </div>
     </div>
 
-    <!-- ★★★ ラベル編集モーダル (新規追加) ★★★ -->
+    <!-- ラベル編集モーダル -->
     <div id="label-editor-modal" class="modal-overlay" style="display: none;">
         <div class="modal-content">
             <div class="modal-header">
@@ -199,7 +209,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ja.js"></script>
-    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js'></script>
     <script src="script.js"></script>
 </body>
 </html>
