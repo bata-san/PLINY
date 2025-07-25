@@ -35,6 +35,12 @@ let currentDataVersion = null;
 let authToken = null;
 let userEmail = null;
 
+let saveDataDebounceTimer = null;
+let changedItems = {
+  tasks: { created: new Set(), updated: new Set(), deleted: new Set() },
+  labels: { created: new Set(), updated: new Set(), deleted: new Set() },
+};
+
 // ===============================================
 // 認証関連
 // ===============================================
@@ -115,6 +121,8 @@ function handleLogout() {
   undoStack = [];
   redoStack = [];
   currentDataVersion = null;
+  clearTrackedChanges();
+  clearTimeout(saveDataDebounceTimer);
   document.getElementById("app-container").style.display = "none";
   document.getElementById("auth-overlay").style.display = "flex";
 }
@@ -147,17 +155,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
 function bindAuthEvents() {
   document.getElementById("login-form").addEventListener("submit", handleLogin);
-  document
-    .getElementById("register-form")
-    .addEventListener("submit", handleRegister);
-  document
-    .getElementById("show-register-form")
-    .addEventListener("click", (e) => {
-      e.preventDefault();
-      document.getElementById("login-form").style.display = "none";
-      document.getElementById("register-form").style.display = "block";
-      showAuthMessage("");
-    });
+  document.getElementById("register-form").addEventListener("submit", handleRegister);
+  document.getElementById("show-register-form").addEventListener("click", (e) => {
+    e.preventDefault();
+    document.getElementById("login-form").style.display = "none";
+    document.getElementById("register-form").style.display = "block";
+    showAuthMessage("");
+  });
   document.getElementById("show-login-form").addEventListener("click", (e) => {
     e.preventDefault();
     document.getElementById("register-form").style.display = "none";
@@ -225,6 +229,7 @@ async function loadData() {
     currentDataVersion = data.version;
     tasks = Array.isArray(data.tasks) ? data.tasks.map(normalizeTask) : [];
     labels = Array.isArray(data.labels) ? data.labels : [];
+    clearTrackedChanges();
     renderAll();
   } catch (e) {
     alert("データの読み込みに失敗しました: " + e.message);
@@ -233,30 +238,139 @@ async function loadData() {
   }
 }
 
-async function saveData(tasksToSave = tasks, labelsToSave = labels) {
+// ===============================================
+// データ保存ロジック (差分更新 + デバウンス)
+// ===============================================
+
+function updateSaveStatus(status, message = "") {
+  const indicator = document.getElementById("save-status-indicator");
+  if (!indicator) return;
+  const statusMap = {
+    saved: "すべての変更を保存しました",
+    saving: "保存中...",
+    unsaved: "未保存の変更があります",
+    error: "保存に失敗しました",
+  };
+  indicator.textContent = message || statusMap[status] || "";
+  indicator.style.opacity = status === "unsaved" || status === "saving" ? "1" : "0";
+  if (status === 'saved') {
+    indicator.style.opacity = '1';
+    setTimeout(() => {
+        if(indicator.textContent === statusMap.saved) {
+             indicator.style.opacity = '0';
+        }
+    }, 2000);
+  }
+}
+
+function trackChange(type, action, id) {
+  const target = type === 'task' ? changedItems.tasks : changedItems.labels;
+  if (target.deleted.has(id)) return;
+  if (action === 'updated' && target.created.has(id)) return;
+  if (action === 'deleted' && target.created.has(id)) {
+      target.created.delete(id);
+      return;
+  }
+  if (action === 'deleted' && target.updated.has(id)) {
+      target.updated.delete(id);
+  }
+  target[action].add(id);
+}
+
+function clearTrackedChanges() {
+  changedItems = {
+    tasks: { created: new Set(), updated: new Set(), deleted: new Set() },
+    labels: { created: new Set(), updated: new Set(), deleted: new Set() },
+  };
+}
+
+async function sendChangesToServer() {
+  const hasTaskChanges = Object.values(changedItems.tasks).some(set => set.size > 0);
+  const hasLabelChanges = Object.values(changedItems.labels).some(set => set.size > 0);
+  if (!hasTaskChanges && !hasLabelChanges) {
+    updateSaveStatus('saved');
+    return;
+  }
+  
+  updateSaveStatus('saving');
+  const patch = {
+    tasks: {
+      created: Array.from(changedItems.tasks.created).map(id => tasks.find(t => t.id === id)).filter(Boolean),
+      updated: Array.from(changedItems.tasks.updated).map(id => tasks.find(t => t.id === id)).filter(Boolean),
+      deleted: Array.from(changedItems.tasks.deleted),
+    },
+    labels: {
+      created: Array.from(changedItems.labels.created).map(id => labels.find(l => l.id === id)).filter(Boolean),
+      updated: Array.from(changedItems.labels.updated).map(id => labels.find(l => l.id === id)).filter(Boolean),
+      deleted: Array.from(changedItems.labels.deleted),
+    },
+    expectedVersion: currentDataVersion,
+  };
+
   try {
     const res = await fetchWithAuth(`${WORKER_URL}/api/data`, {
-      method: "PUT",
-      body: JSON.stringify({
-        tasks: tasksToSave.map(normalizeTask).filter(Boolean),
-        labels: labelsToSave,
-        expectedVersion: currentDataVersion,
-      }),
+      method: "PATCH",
+      body: JSON.stringify(patch),
     });
     if (res.status === 409) {
-      document.getElementById("conflict-modal").style.display = "flex";
-      document.getElementById("conflict-modal-ok-btn").onclick = () => {
-        document.getElementById("conflict-modal").style.display = "none";
-        loadData();
-      };
-      return;
+        // この一般的な競合はモーダルで表示
+        document.getElementById("conflict-modal").style.display = "flex";
+        document.getElementById("conflict-modal-ok-btn").onclick = () => {
+            document.getElementById("conflict-modal").style.display = "none";
+            loadData();
+        };
+        return;
     }
     if (!res.ok) throw new Error((await res.json()).error || "保存失敗");
     const result = await res.json();
     currentDataVersion = result.version;
+    clearTrackedChanges();
+    updateSaveStatus('saved');
   } catch (error) {
+    updateSaveStatus('error');
     alert(`データの保存に失敗しました: ${error.message}`);
   }
+}
+
+function scheduleSave() {
+  renderAll();
+  updateSaveStatus('unsaved');
+  clearTimeout(saveDataDebounceTimer);
+  saveDataDebounceTimer = setTimeout(sendChangesToServer, 2000);
+}
+
+async function forceSaveAllData(state) {
+    clearTimeout(saveDataDebounceTimer);
+    updateSaveStatus('saving', 'データを同期中...');
+    try {
+        const res = await fetchWithAuth(`${WORKER_URL}/api/data`, {
+            method: 'PUT',
+            body: JSON.stringify({
+                tasks: state.tasks.map(normalizeTask).filter(Boolean),
+                labels: state.labels,
+                expectedVersion: currentDataVersion,
+            }),
+        });
+        if (res.status === 409) {
+            document.getElementById("conflict-modal").style.display = "flex";
+            document.getElementById("conflict-modal-ok-btn").onclick = () => {
+                document.getElementById("conflict-modal").style.display = "none";
+                loadData();
+            };
+            return;
+        }
+        if (!res.ok) throw new Error((await res.json()).error || "同期に失敗しました");
+        const result = await res.json();
+        currentDataVersion = result.version;
+        tasks = state.tasks;
+        labels = state.labels;
+        clearTrackedChanges();
+        renderAll();
+        updateSaveStatus('saved');
+    } catch (error) {
+        alert(`データの同期に失敗しました: ${error.message}`);
+        updateSaveStatus('error');
+    }
 }
 
 // ===============================================
@@ -290,64 +404,34 @@ function renderTaskList() {
     const isCollapsed = node.isCollapsed ?? true;
     const hasChildren = node.children.length > 0;
     const highestPrioLabel = getHighestPriorityLabel(node);
-    const labelColor = highestPrioLabel
-      ? highestPrioLabel.color
-      : "transparent";
+    const labelColor = highestPrioLabel ? highestPrioLabel.color : "transparent";
 
     const el = document.createElement("div");
     el.className = "task-node";
     el.style.setProperty("--level", level);
     el.innerHTML = `
-            <div class="task-card ${node.completed ? "completed" : ""} ${
-      labelColor !== "transparent" ? "has-label-color" : ""
-    }" data-task-id="${
-      node.id
-    }" draggable="true" style="--label-color: ${labelColor};">
-                <div class="task-card-main">
-                    <div class="task-toggle ${hasChildren ? "" : "hidden"} ${
-      isCollapsed ? "" : "collapsed"
-    }" data-action="toggle">${ICONS.chevron}</div>
-                    <div class="task-content-wrapper">
-                        <span class="task-text">${(node.text || "").replace(
-                          /</g,
-                          "<"
-                        )}</span>
-                        <div class="task-meta">
-                            <div class="task-labels">${(node.labelIds || [])
-                              .map((id) =>
-                                labels.find(
-                                  (l) => l.id.toString() === id.toString()
-                                )
-                              )
-                              .filter(Boolean)
-                              .sort(
-                                (a, b) =>
-                                  (a.priority || 99) - (b.priority || 99)
-                              )
-                              .map(
-                                (l) =>
-                                  `<span class="task-label-badge">${l.name}</span>`
-                              )
-                              .join("")}</div>
-                            <span class="task-due-date">${formatDueDate(
-                              node.startDate,
-                              node.endDate
-                            )}</span>
-                        </div>
+        <div class="task-card ${node.completed ? "completed" : ""} ${labelColor !== "transparent" ? "has-label-color" : ""}" data-task-id="${node.id}" draggable="true" style="--label-color: ${labelColor};">
+            <div class="task-card-main">
+                <div class="task-toggle ${hasChildren ? "" : "hidden"} ${isCollapsed ? "" : "collapsed"}" data-action="toggle">${ICONS.chevron}</div>
+                <div class="task-content-wrapper">
+                    <span class="task-text">${(node.text || "").replace(/</g, "<")}</span>
+                    <div class="task-meta">
+                        <div class="task-labels">${(node.labelIds || [])
+                          .map((id) => labels.find((l) => l.id.toString() === id.toString()))
+                          .filter(Boolean)
+                          .sort((a, b) => (a.priority || 99) - (b.priority || 99))
+                          .map((l) => `<span class="task-label-badge">${l.name}</span>`)
+                          .join("")}</div>
+                        <span class="task-due-date">${formatDueDate(node.startDate, node.endDate)}</span>
                     </div>
                 </div>
-                <div class="task-actions">
-                    <button data-action="edit-labels" title="ラベルを編集">${
-                      ICONS.label
-                    }</button>
-                    <button data-action="complete" title="${
-                      node.completed ? "未完了" : "完了"
-                    }">${ICONS.check}</button>
-                    <button data-action="delete" title="削除">${
-                      ICONS.delete
-                    }</button>
-                </div>
-            </div>`;
+            </div>
+            <div class="task-actions">
+                <button data-action="edit-labels" title="ラベルを編集">${ICONS.label}</button>
+                <button data-action="complete" title="${node.completed ? "未完了" : "完了"}">${ICONS.check}</button>
+                <button data-action="delete" title="削除">${ICONS.delete}</button>
+            </div>
+        </div>`;
     parent.appendChild(el);
     if (hasChildren && !isCollapsed) {
       node.children
@@ -369,10 +453,7 @@ function renderCalendar() {
       const exclusiveEndDate = new Date(task.endDate + "T00:00:00Z");
       exclusiveEndDate.setUTCDate(exclusiveEndDate.getUTCDate() + 1);
       const highestPrioLabel = getHighestPriorityLabel(task);
-      const eventColor = task.completed
-        ? "#adb5bd"
-        : highestPrioLabel?.color || "#007aff";
-
+      const eventColor = task.completed ? "#adb5bd" : highestPrioLabel?.color || "#007aff";
       return {
         id: task.id,
         title: task.text,
@@ -416,22 +497,25 @@ function renderLabelList() {
         if (e.target.value.trim() !== label.name) {
           pushToUndoStack();
           label.name = e.target.value.trim();
-          saveDataAndRender();
+          trackChange('label', 'updated', label.id);
+          scheduleSave();
         }
       };
       item.querySelector(".delete-label-btn").onclick = () => {
         if (confirm(`「${label.name}」を削除しますか？`)) {
           pushToUndoStack();
+          trackChange('label', 'deleted', label.id);
           labels = labels.filter((l) => l.id !== label.id);
-          tasks.forEach(
-            (t) => (t.labelIds = t.labelIds.filter((id) => id !== label.id))
-          );
-          saveDataAndRender();
+          tasks.forEach((t) => {
+              if (t.labelIds.includes(label.id)) {
+                  t.labelIds = t.labelIds.filter((id) => id !== label.id);
+                  trackChange('task', 'updated', t.id);
+              }
+          });
+          scheduleSave();
         }
       };
-      item
-        .querySelector(".priority-control-container")
-        .appendChild(createPriorityControl(label));
+      item.querySelector(".priority-control-container").appendChild(createPriorityControl(label));
       listContainer.appendChild(item);
     });
 }
@@ -439,18 +523,15 @@ function renderLabelList() {
 function createPriorityControl(label) {
   const control = document.createElement("div");
   control.className = "priority-control";
-  [
-    { p: 1, t: "高" },
-    { p: 2, t: "中" },
-    { p: 3, t: "低" },
-  ].forEach((prio) => {
+  [{ p: 1, t: "高" }, { p: 2, t: "中" }, { p: 3, t: "低" }].forEach((prio) => {
     const btn = document.createElement("button");
     btn.textContent = prio.t;
     btn.className = label.priority === prio.p ? "active" : "";
     btn.onclick = () => {
       pushToUndoStack();
       label.priority = prio.p;
-      saveDataAndRender();
+      trackChange('label', 'updated', label.id);
+      scheduleSave();
     };
     control.appendChild(btn);
   });
@@ -466,16 +547,15 @@ function renderLabelAddForm() {
     const nameInput = document.getElementById("new-label-name");
     if (nameInput.value.trim()) {
       pushToUndoStack();
-      labels.push({
+      const newLabel = {
         id: `label-${Date.now()}`,
         name: nameInput.value.trim(),
-        color: "transparent",
-        priority:
-          (labels.length > 0
-            ? Math.max(...labels.map((l) => l.priority || 0))
-            : 0) + 1,
-      });
-      saveDataAndRender();
+        color: PRESET_COLORS[labels.length % PRESET_COLORS.length],
+        priority: (labels.length > 0 ? Math.max(...labels.map((l) => l.priority || 0)) : 0) + 1,
+      };
+      labels.push(newLabel);
+      trackChange('label', 'created', newLabel.id);
+      scheduleSave();
       nameInput.value = "";
     }
   };
@@ -500,7 +580,7 @@ function renderAddTaskLabelSelector() {
 }
 
 // ===============================================
-// UIコンポーネント (ポップオーバー)
+// UIコンポーネント
 // ===============================================
 function showColorPalette(anchor, label) {
   closeAllPopovers();
@@ -514,7 +594,8 @@ function showColorPalette(anchor, label) {
     colorBox.onclick = () => {
       pushToUndoStack();
       label.color = color;
-      saveDataAndRender();
+      trackChange('label', 'updated', label.id);
+      scheduleSave();
       closeAllPopovers();
     };
     palette.appendChild(colorBox);
@@ -522,44 +603,6 @@ function showColorPalette(anchor, label) {
   document.body.appendChild(palette);
   positionPopover(anchor, palette);
   palette.style.display = "grid";
-}
-
-function showLabelSelectPopover(anchor, task) {
-  closeAllPopovers();
-  const popover = document.createElement("div");
-  popover.className = "popover label-select-popover";
-  popover.innerHTML = "<h3>ラベルを選択</h3>";
-  const list = document.createElement("div");
-  list.className = "label-select-list";
-  labels.forEach((label) => {
-    const item = document.createElement("label");
-    item.className = "label-select-item";
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.value = label.id;
-    checkbox.checked = task.labelIds.includes(label.id);
-    checkbox.onchange = () => {
-      pushToUndoStack();
-      if (checkbox.checked) {
-        task.labelIds.push(label.id);
-      } else {
-        task.labelIds = task.labelIds.filter((id) => id !== label.id);
-      }
-      saveDataAndRender();
-    };
-    const colorDot = document.createElement("div");
-    colorDot.className = "label-color-dot";
-    colorDot.style.backgroundColor = label.color;
-
-    item.appendChild(checkbox);
-    item.appendChild(colorDot);
-    item.innerHTML += `<span class="label-name">${label.name}</span>`;
-    list.appendChild(item);
-  });
-  popover.appendChild(list);
-  document.body.appendChild(popover);
-  positionPopover(anchor, popover);
-  popover.style.display = "block";
 }
 
 function positionPopover(anchor, popover) {
@@ -575,6 +618,111 @@ function closeAllPopovers() {
 }
 
 // ===============================================
+// ★★★ ラベル編集モーダル関連 (新規・修正) ★★★
+// ===============================================
+/**
+ * ラベル編集モーダルを開く
+ * @param {object} taskToEdit - 編集対象のタスクオブジェクト
+ */
+function openLabelEditorModal(taskToEdit) {
+    const modal = document.getElementById('label-editor-modal');
+    if (!modal) return;
+
+    modal.dataset.taskId = taskToEdit.id;
+    document.getElementById('modal-task-name').textContent = taskToEdit.text;
+
+    const listContainer = document.getElementById('modal-label-list');
+    listContainer.innerHTML = '';
+    labels
+        .sort((a, b) => (a.priority || 99) - (b.priority || 99))
+        .forEach(label => {
+            const isChecked = taskToEdit.labelIds.includes(label.id);
+            const item = document.createElement('label');
+            item.className = 'modal-label-item';
+            item.innerHTML = `
+                <input type="checkbox" value="${label.id}" ${isChecked ? 'checked' : ''}>
+                <span class="label-color-dot" style="background-color: ${label.color};"></span>
+                <span class="label-name">${label.name}</span>
+            `;
+            listContainer.appendChild(item);
+        });
+    
+    modal.style.display = 'flex';
+}
+
+function closeLabelEditorModal() {
+    const modal = document.getElementById('label-editor-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+/**
+ * タスクのラベル変更を保存（自動リトライ付き）
+ * @param {string} taskId - 対象タスクのID
+ * @param {string[]} newLabelIds - 新しいラベルIDの配列
+ * @param {number} retryCount - リトライ回数（内部使用）
+ */
+async function saveTaskLabelChanges(taskId, newLabelIds, retryCount = 0) {
+    if (retryCount > 2) { // 3回失敗したら諦める
+        alert("サーバーとの同期に繰り返し失敗しました。ページをリロードしてください。");
+        updateSaveStatus('error');
+        return;
+    }
+    
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    pushToUndoStack();
+    task.labelIds = newLabelIds;
+    trackChange('task', 'updated', taskId);
+
+    // デバウンスをキャンセルして即時保存
+    clearTimeout(saveDataDebounceTimer);
+    updateSaveStatus('saving');
+    
+    const patch = {
+        tasks: { updated: [task] },
+        labels: {},
+        expectedVersion: currentDataVersion,
+    };
+
+    try {
+        const res = await fetchWithAuth(`${WORKER_URL}/api/data`, {
+            method: "PATCH",
+            body: JSON.stringify(patch),
+        });
+
+        if (res.status === 409) {
+            // ★★★ 競合発生！自動リトライ処理 ★★★
+            console.warn("Conflict detected. Retrying label update...");
+            // 1. 最新データを取得
+            const latestDataRes = await fetchWithAuth(`${WORKER_URL}/api/data`);
+            const latestData = await latestDataRes.json();
+            // 2. ローカルデータを更新
+            tasks = latestData.tasks.map(normalizeTask);
+            labels = latestData.labels;
+            currentDataVersion = latestData.version;
+            // 3. 変更を再適用してリトライ
+            await saveTaskLabelChanges(taskId, newLabelIds, retryCount + 1);
+            return; // リトライに任せるのでここで終了
+        }
+
+        if (!res.ok) throw new Error((await res.json()).error || "保存失敗");
+
+        const result = await res.json();
+        currentDataVersion = result.version;
+        clearTrackedChanges(); // 今回の変更は保存されたのでクリア
+        renderAll(); // UIを最新の状態に
+        updateSaveStatus('saved');
+        closeLabelEditorModal();
+
+    } catch (error) {
+        updateSaveStatus('error');
+        alert(`ラベルの保存に失敗しました: ${error.message}`);
+    }
+}
+
+
+// ===============================================
 // ヘルパー関数
 // ===============================================
 function normalizeTask(task) {
@@ -582,7 +730,7 @@ function normalizeTask(task) {
   const today = new Date().toISOString().split("T")[0];
   const startDate = task.startDate || today;
   return {
-    id: task.id || `task-${Date.now()}`,
+    id: task.id || `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     text: task.text || "(無題)",
     startDate,
     endDate: task.endDate || startDate,
@@ -598,18 +746,9 @@ function formatDueDate(start, end) {
   try {
     const startDate = new Date(start + "T00:00:00");
     if (!end || start === end)
-      return startDate.toLocaleDateString("ja-JP", {
-        month: "numeric",
-        day: "numeric",
-      });
+      return startDate.toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" });
     const endDate = new Date(end + "T00:00:00");
-    return `${startDate.toLocaleDateString("ja-JP", {
-      month: "numeric",
-      day: "numeric",
-    })} → ${endDate.toLocaleDateString("ja-JP", {
-      month: "numeric",
-      day: "numeric",
-    })}`;
+    return `${startDate.toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })} → ${endDate.toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })}`;
   } catch (e) {
     return "無効な日付";
   }
@@ -623,69 +762,59 @@ function getHighestPriorityLabel(task) {
     .sort((a, b) => (a.priority || 99) - (b.priority || 99))[0];
 }
 
-async function saveDataAndRender() {
-  renderAll();
-  await saveData();
-}
-
 // ===============================================
 // イベントハンドラ
 // ===============================================
 function bindGlobalEvents() {
   document.addEventListener("click", (e) => {
-    if (!e.target.closest('.popover, [data-action="edit-labels"]'))
-      closeAllPopovers();
+    if (!e.target.closest('.popover, #label-editor-modal .modal-content')) closeAllPopovers();
   });
   document.getElementById("logout-btn").addEventListener("click", handleLogout);
 
   bindAccordionEvents();
-
   setupTaskFormEvents();
   setupTaskListEvents();
-  setupViewSwitcherEvents(); // ★ 定義を追加
-  setupUndoRedoEvents(); // ★ 定義を追加
+  setupViewSwitcherEvents();
+  setupUndoRedoEvents();
   setupAiEvents();
   setupDataManagerEvents();
   setupWindowEvents();
+  // ★★★ ラベル編集モーダルのイベントをバインド
+  setupLabelEditorModalEvents();
 }
 
 function setupTaskFormEvents() {
   const form = document.getElementById("task-form");
   if (!form) return;
-  form.addEventListener("submit", async (e) => {
+  form.addEventListener("submit", (e) => {
     e.preventDefault();
     const taskInput = document.getElementById("task-input");
-    const dates =
-      document.getElementById("task-due-date")._flatpickr.selectedDates;
+    const dates = document.getElementById("task-due-date")._flatpickr.selectedDates;
     if (!taskInput.value.trim() || dates.length === 0)
       return alert("タスク名と期間を入力してください。");
 
     pushToUndoStack();
-    tasks.push(
-      normalizeTask({
+    const newTask = normalizeTask({
         text: taskInput.value.trim(),
         startDate: dates[0].toISOString().split("T")[0],
         endDate: (dates[1] || dates[0]).toISOString().split("T")[0],
-        labelIds: Array.from(
-          document.querySelectorAll("#add-task-label-selector .selected input")
-        ).map((i) => i.value),
-      })
-    );
-    await saveDataAndRender();
+        labelIds: Array.from(document.querySelectorAll("#add-task-label-selector .selected input")).map((i) => i.value),
+      });
+
+    tasks.push(newTask);
+    trackChange('task', 'created', newTask.id);
+    scheduleSave();
 
     form.reset();
     document.getElementById("task-due-date")._flatpickr.clear();
-    document
-      .querySelectorAll("#add-task-label-selector .selected")
-      .forEach((el) => el.classList.remove("selected"));
+    document.querySelectorAll("#add-task-label-selector .selected").forEach((el) => el.classList.remove("selected"));
   });
 }
 
 function setupTaskListEvents() {
   const container = document.getElementById("task-list-container");
   if (!container) return;
-
-  container.addEventListener("click", async (e) => {
+  container.addEventListener("click", (e) => {
     const actionTarget = e.target.closest("[data-action]");
     if (!actionTarget) return;
     const taskCard = e.target.closest(".task-card");
@@ -693,48 +822,78 @@ function setupTaskListEvents() {
     const task = tasks.find((t) => t.id === taskCard.dataset.taskId);
     if (!task) return;
 
-    let shouldSave = true,
-      shouldRender = true;
-    pushToUndoStack();
+    let shouldScheduleSave = false;
 
     switch (actionTarget.dataset.action) {
       case "toggle":
         task.isCollapsed = !task.isCollapsed;
-        shouldSave = false;
+        trackChange('task', 'updated', task.id);
+        shouldScheduleSave = true;
         break;
       case "complete":
+        pushToUndoStack();
         task.completed = !task.completed;
+        trackChange('task', 'updated', task.id);
+        shouldScheduleSave = true;
         break;
       case "edit-labels":
         e.stopPropagation();
-        showLabelSelectPopover(actionTarget, task);
-        shouldSave = shouldRender = false;
+        openLabelEditorModal(task); // ★★★ ここを変更
         break;
       case "delete":
-        const descendantIds = tasks
-          .filter((t) => t.parentId === task.id)
-          .map((t) => t.id);
-        if (
-          confirm(
-            `このタスクと${descendantIds.length}個の子タスクを削除しますか？`
-          )
-        ) {
+        pushToUndoStack();
+        const descendantIds = tasks.filter((t) => t.parentId === task.id).map((t) => t.id);
+        if (confirm(`このタスクと${descendantIds.length}個の子タスクを削除しますか？`)) {
           const allIdsToDelete = [task.id, ...descendantIds];
+          allIdsToDelete.forEach(id => trackChange('task', 'deleted', id));
           tasks = tasks.filter((t) => !allIdsToDelete.includes(t.id));
-        } else {
-          shouldSave = shouldRender = false;
-          undoStack.pop(); // キャンセルしたのでUndoスタックから削除
+          shouldScheduleSave = true;
         }
         break;
-      default:
-        shouldSave = shouldRender = false;
-        undoStack.pop();
+      default: break;
     }
-
-    if (shouldRender) renderAll();
-    if (shouldSave) await saveData();
+    if (shouldScheduleSave) scheduleSave();
+    else renderAll();
   });
   setupDragAndDropEvents(container);
+}
+
+// ★★★ ラベル編集モーダルのイベントリスナーをセットアップ
+function setupLabelEditorModalEvents() {
+    const modal = document.getElementById('label-editor-modal');
+    if(!modal) return;
+
+    document.getElementById('label-editor-modal-close').addEventListener('click', closeLabelEditorModal);
+    document.getElementById('label-editor-modal-cancel').addEventListener('click', closeLabelEditorModal);
+
+    document.getElementById('label-editor-modal-save').addEventListener('click', () => {
+        const taskId = modal.dataset.taskId;
+        const selectedLabelIds = Array.from(modal.querySelectorAll('#modal-label-list input:checked')).map(input => input.value);
+        saveTaskLabelChanges(taskId, selectedLabelIds);
+    });
+
+    document.getElementById('modal-add-new-label-btn').addEventListener('click', () => {
+        const nameInput = document.getElementById('modal-new-label-name');
+        const name = nameInput.value.trim();
+        if (name) {
+            pushToUndoStack();
+            const newLabel = {
+                id: `label-${Date.now()}`,
+                name: name,
+                color: PRESET_COLORS[labels.length % PRESET_COLORS.length],
+                priority: (labels.length > 0 ? Math.max(...labels.map(l => l.priority || 0)) : 0) + 1,
+            };
+            labels.push(newLabel);
+            trackChange('label', 'created', newLabel.id);
+            
+            // モーダル内のリストを再描画して、新しいラベルを即座に表示・選択可能にする
+            const task = tasks.find(t => t.id === modal.dataset.taskId);
+            if (task) openLabelEditorModal(task);
+            
+            nameInput.value = '';
+            scheduleSave(); // 新規ラベルを保存
+        }
+    });
 }
 
 function setupDragAndDropEvents(container) {
@@ -754,7 +913,7 @@ function setupDragAndDropEvents(container) {
     }
   });
   container.addEventListener("dragover", (e) => e.preventDefault());
-  container.addEventListener("drop", async (e) => {
+  container.addEventListener("drop", (e) => {
     e.preventDefault();
     const targetCard = e.target.closest(".task-card");
     if (!targetCard || !draggedElement) return;
@@ -776,19 +935,20 @@ function setupDragAndDropEvents(container) {
 
     pushToUndoStack();
     draggedTask.parentId = targetId;
+    trackChange('task', 'updated', draggedTask.id);
+    
     const targetTask = tasks.find((t) => t.id === targetId);
-    if (targetTask) targetTask.isCollapsed = false;
-    await saveDataAndRender();
+    if (targetTask) {
+        targetTask.isCollapsed = false;
+        trackChange('task', 'updated', targetTask.id);
+    }
+    scheduleSave();
   });
 }
 
 function setupDataManagerEvents() {
   document.getElementById("export-json-btn")?.addEventListener("click", () => {
-    const dataStr = JSON.stringify(
-      { tasks, labels, version: currentDataVersion },
-      null,
-      2
-    );
+    const dataStr = JSON.stringify({ tasks, labels, version: currentDataVersion }, null, 2);
     const blob = new Blob([dataStr], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -796,7 +956,6 @@ function setupDataManagerEvents() {
     a.click();
     URL.revokeObjectURL(a.href);
   });
-
   document.getElementById("import-json-btn")?.addEventListener("click", () => {
     const fileInput = document.getElementById("import-json-file");
     const merge = document.getElementById("merge-with-existing").checked;
@@ -806,20 +965,20 @@ function setupDataManagerEvents() {
     reader.onload = async (event) => {
       try {
         const data = JSON.parse(event.target.result);
-        if (!Array.isArray(data.tasks) || !Array.isArray(data.labels))
-          throw new Error("無効な形式です。");
+        if (!Array.isArray(data.tasks) || !Array.isArray(data.labels)) throw new Error("無効な形式です。");
         pushToUndoStack();
+        let importedState;
         if (merge) {
           const taskIds = new Set(tasks.map((t) => t.id));
           const labelIds = new Set(labels.map((l) => l.id));
-          tasks.push(...data.tasks.filter((t) => !taskIds.has(t.id)));
-          labels.push(...data.labels.filter((l) => !labelIds.has(l.id)));
+          const newTasks = [...tasks, ...data.tasks.filter((t) => !taskIds.has(t.id))];
+          const newLabels = [...labels, ...data.labels.filter((l) => !labelIds.has(l.id))];
+          importedState = {tasks: newTasks, labels: newLabels};
         } else {
-          tasks = data.tasks;
-          labels = data.labels;
+          importedState = {tasks: data.tasks, labels: data.labels};
         }
-        alert("インポートが完了しました。");
-        await saveDataAndRender();
+        alert("インポートが完了しました。データを同期します。");
+        await forceSaveAllData(importedState);
       } catch (e) {
         alert(`インポート失敗: ${e.message}`);
       }
@@ -833,15 +992,9 @@ function setupAiEvents() {
   if (btn) btn.addEventListener("click", handleAiInteraction);
 }
 
-// ★★★★★ ここからが前回抜けていた関数の定義です ★★★★★
-
 function setupViewSwitcherEvents() {
-  document
-    .getElementById("show-list-btn")
-    ?.addEventListener("click", () => switchView("list"));
-  document
-    .getElementById("show-calendar-btn")
-    ?.addEventListener("click", () => switchView("calendar"));
+  document.getElementById("show-list-btn")?.addEventListener("click", () => switchView("list"));
+  document.getElementById("show-calendar-btn")?.addEventListener("click", () => switchView("calendar"));
 }
 
 function setupUndoRedoEvents() {
@@ -852,34 +1005,32 @@ function setupUndoRedoEvents() {
 function setupWindowEvents() {
   window.addEventListener("resize", () => {
     if (calendar) {
-      calendar.changeView(
-        window.innerWidth < 1024 ? "listWeek" : "dayGridMonth"
-      );
+      calendar.changeView(window.innerWidth < 1024 ? "listWeek" : "dayGridMonth");
       calendar.updateSize();
     }
   });
-  // 初期表示時にも一度実行
   if (calendar) {
     calendar.changeView(window.innerWidth < 1024 ? "listWeek" : "dayGridMonth");
   }
+  window.addEventListener('beforeunload', (event) => {
+    const hasChanges = Object.values(changedItems.tasks).some(s => s.size > 0) || Object.values(changedItems.labels).some(s => s.size > 0);
+    if (hasChanges) {
+      event.preventDefault();
+      event.returnValue = '未保存の変更があります。ページを離れてもよろしいですか？';
+    }
+  });
 }
 
 function bindAccordionEvents() {
   const leftPane = document.getElementById("left-pane");
   if (!leftPane) return;
-
   leftPane.addEventListener("click", function (e) {
     const toggleButton = e.target.closest(".accordion-toggle");
     if (!toggleButton) return;
-
     const currentAccordion = toggleButton.closest(".accordion");
     if (!currentAccordion) return;
-
-    // モバイルビューかどうかを判定 (CSSのブレークポイントと合わせる)
     const isMobileView = window.innerWidth <= 768;
-
     if (isMobileView) {
-      // モバイルの場合：他のアコーディオンを全て閉じる
       document.querySelectorAll(".accordion").forEach((accordion) => {
         if (accordion !== currentAccordion) {
           accordion.classList.remove("active");
@@ -887,8 +1038,6 @@ function bindAccordionEvents() {
         }
       });
     }
-
-    // クリックされたアコーディオンの開閉をトグル
     const content = currentAccordion.querySelector(".accordion-content");
     const isActive = currentAccordion.classList.toggle("active");
     content.style.display = isActive ? "flex" : "none";
@@ -920,35 +1069,31 @@ function switchView(view) {
   }
 }
 
-async function handleEventDrop({ event, revert }) {
+async function handleEventDrop({ event }) {
   const task = tasks.find((t) => t.id === event.id);
-  if (!task) return revert();
-
+  if (!task) return;
   pushToUndoStack();
   const originalDuration = new Date(task.endDate) - new Date(task.startDate);
   const newStartDate = event.start;
   const newEndDate = new Date(newStartDate.getTime() + originalDuration);
-
   const formatDate = (date) => date.toISOString().split("T")[0];
   task.startDate = formatDate(newStartDate);
   task.endDate = formatDate(newEndDate);
-
-  await saveDataAndRender();
+  trackChange('task', 'updated', task.id);
+  scheduleSave();
 }
 
-async function handleEventResize({ event, revert }) {
+async function handleEventResize({ event }) {
   const task = tasks.find((t) => t.id === event.id);
-  if (!task) return revert();
-
+  if (!task) return;
   pushToUndoStack();
   const formatDate = (date) => date.toISOString().split("T")[0];
   const inclusiveEndDate = new Date(event.end);
   inclusiveEndDate.setDate(inclusiveEndDate.getDate() - 1);
-
   task.startDate = formatDate(event.start);
   task.endDate = formatDate(inclusiveEndDate);
-
-  await saveDataAndRender();
+  trackChange('task', 'updated', task.id);
+  scheduleSave();
 }
 
 function updateUndoRedoButtons() {
@@ -959,69 +1104,51 @@ function updateUndoRedoButtons() {
 }
 
 function pushToUndoStack() {
-  undoStack.push(
-    JSON.parse(JSON.stringify({ tasks, labels, version: currentDataVersion }))
-  );
+  undoStack.push(JSON.parse(JSON.stringify({ tasks, labels })));
   redoStack = [];
   updateUndoRedoButtons();
 }
 
 async function handleUndo() {
   if (undoStack.length === 0) return;
-  redoStack.push(
-    JSON.parse(JSON.stringify({ tasks, labels, version: currentDataVersion }))
-  );
+  redoStack.push(JSON.parse(JSON.stringify({ tasks, labels })));
   const prevState = undoStack.pop();
-  tasks = prevState.tasks;
-  labels = prevState.labels;
-  currentDataVersion = prevState.version;
-  await saveDataAndRender();
+  await forceSaveAllData(prevState);
   updateUndoRedoButtons();
 }
 
 async function handleRedo() {
   if (redoStack.length === 0) return;
-  undoStack.push(
-    JSON.parse(JSON.stringify({ tasks, labels, version: currentDataVersion }))
-  );
+  undoStack.push(JSON.parse(JSON.stringify({ tasks, labels })));
   const nextState = redoStack.pop();
-  tasks = nextState.tasks;
-  labels = nextState.labels;
-  currentDataVersion = nextState.version;
-  await saveDataAndRender();
+  await forceSaveAllData(nextState);
   updateUndoRedoButtons();
 }
 
 async function handleAiInteraction() {
   const promptText = document.getElementById("gemini-prompt").value.trim();
   if (!promptText) return alert("プロンプトを入力してください。");
-
   const geminiBtn = document.getElementById("gemini-trigger-btn");
   geminiBtn.disabled = true;
   geminiBtn.querySelector(".default-text").style.display = "none";
   geminiBtn.querySelector(".loading-indicator").style.display = "flex";
-
   try {
     pushToUndoStack();
     const res = await fetchWithAuth(`${WORKER_URL}/api/ai`, {
       method: "POST",
-      body: JSON.stringify({
-        prompt: promptText,
-        context: { tasks, labels },
-      }),
+      body: JSON.stringify({ prompt: promptText, context: { tasks, labels } }),
     });
-
     if (!res.ok) throw new Error((await res.json()).error || `AI APIエラー`);
     const data = await res.json();
-
-    tasks = data.tasks || tasks;
-    labels = data.labels || labels;
-
-    await saveDataAndRender();
+    const newState = { tasks: data.tasks || tasks, labels: data.labels || labels };
+    await forceSaveAllData(newState);
     document.getElementById("gemini-prompt").value = "";
   } catch (error) {
     alert("AIアシスタントの処理中にエラーが発生しました: " + error.message);
-    handleUndo();
+    if(undoStack.length > 0){
+        const prevState = undoStack.pop();
+        await forceSaveAllData(prevState);
+    }
   } finally {
     geminiBtn.disabled = false;
     geminiBtn.querySelector(".default-text").style.display = "inline";

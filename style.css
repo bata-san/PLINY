@@ -41,7 +41,6 @@ html, body {
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    /* --- ▼ 修正点 1: 水平方向の意図しないスクロールをグローバルで防止 --- */
     overflow-x: hidden;
 }
 
@@ -126,7 +125,6 @@ html, body {
     display: flex;
     height: 100vh;
     position: relative;
-    /* --- ▼ 修正点 2: アプリケーションコンテナ自体がはみ出すことを防止 --- */
     overflow: hidden;
 }
 
@@ -166,8 +164,6 @@ html, body {
     padding: 24px;
     overflow-y: auto;
     flex-shrink: 0;
-
-    /* --- ▼ 修正点: ペインの高さをビューポートに固定 --- */
     height: 100vh; 
 }
 
@@ -218,7 +214,7 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
 }
 
 
-#global-actions { display: flex; gap: 12px; align-self: flex-end; }
+#global-actions { display: flex; gap: 12px; align-self: flex-end; align-items: center; }
 #global-actions button {
     width: 36px; height: 36px;
     background: transparent; color: var(--primary);
@@ -393,12 +389,10 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
 
 .task-content-wrapper {
     min-width: 0;
-    /* --- ▼ 修正点 4: はみ出しの原因となる内部コンテンツをクリップ --- */
     overflow: hidden;
 }
 .task-text {
     font-weight: 500;
-    /* --- ▼ 修正点 5: 長いテキストがレイアウトを崩さないように省略表示する --- */
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -431,7 +425,6 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
    モバイル・レスポンシブ対応
    ============================================== */
 
-/* タブレット対応 */
 @media (max-width: 1024px) {
     #app-container {
         flex-direction: column;
@@ -456,7 +449,7 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
     }
     
     #view-switcher {
-        display: none; /* カレンダー非表示 */
+        display: none;
     }
     
     #calendar-view {
@@ -468,7 +461,6 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
     }
 }
 
-/* スマホ対応 */
 @media (max-width: 768px) {
     html, body {
         font-size: 14px;
@@ -477,7 +469,7 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
     #app-container {
         flex-direction: column;
         height: 100vh;
-        height: 100svh; /* Safari対応 */
+        height: 100svh;
     }
     
     #left-pane {
@@ -513,14 +505,13 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
         margin-bottom: 16px;
     }
     
-    /* タスクフォーム */
     #task-form {
         gap: 12px;
     }
     
     #task-input {
         padding: 12px 16px;
-        font-size: 16px; /* ズーム防止 */
+        font-size: 16px;
     }
     
     #task-due-date {
@@ -534,7 +525,6 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
         font-weight: 600;
     }
     
-    /* アコーディオン */
     .accordion-toggle {
         padding: 16px 12px;
         font-size: 15px;
@@ -545,7 +535,6 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
         padding: 12px;
     }
     
-    /* ラベル選択 */
     .label-select-grid {
         gap: 8px;
     }
@@ -555,12 +544,10 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
         font-size: 13px;
     }
     
-    /* データ管理 */
     .data-manager-section h4 {
         font-size: 13px;
     }
     
-    /* 右パネル */
     #right-pane {
         flex: 1;
         min-height: 0;
@@ -594,7 +581,6 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
         height: calc(100% - 60px);
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
-        /* --- ▼ 修正点 6: モバイル表示でリストが水平方向にはみ出すのを防ぐ --- */
         overflow-x: hidden;
     }
     
@@ -602,12 +588,10 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
         padding: 16px;
     }
     
-    /* タスクリスト */
     .task-node {
       padding: 10px 0;
     }
     
-    /* モーダル */
     .modal-overlay {
         padding: 16px;
     }
@@ -640,8 +624,7 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
         padding: 12px;
         font-size: 15px;
     }
-    
-    /* ポップオーバー */
+
    .popover {
     position: absolute;
     background: var(--bg-pane);
@@ -649,13 +632,11 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     border: 1px solid var(--border-color);
     z-index: 1000;
-    display: none; /* Hidden by default */
+    display: none;
     padding: 8px;
-
-    /* --- ▼ 修正点: はみ出し防止設定 --- */
-    max-width: calc(100vw - 32px);   /* (1) ビューポート幅から左右16pxずつのマージンを引いた値を最大幅にする */
-    max-height: calc(100vh - 32px);  /* (2) ビューポート高から上下16pxずつのマージンを引いた値を最大高にする */
-    overflow-y: auto;                 /* (3) コンテンツが最大高を超えた場合にスクロールさせる */
+    max-width: calc(100vw - 32px);
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
 }
 
 .color-palette {
@@ -682,7 +663,6 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
 .label-select-popover {
     padding: 12px;
     width: 280px;
-    /* widthは280pxを維持しつつ、.popoverのmax-width指定によって画面幅が狭い場合は自動で縮小される */
 }
 
 .label-select-popover h3 {
@@ -691,9 +671,8 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
     font-weight: 600;
 }
     
-    /* ボタン全般 */
     button {
-        min-height: 44px; /* タッチしやすいサイズ */
+        min-height: 44px;
         touch-action: manipulation;
         font-size: 15px;
     }
@@ -702,28 +681,24 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
         min-height: 40px;
     }
     
-    /* テキストエリア */
     textarea {
-        font-size: 16px; /* ズーム防止 */
+        font-size: 16px;
         touch-action: manipulation;
     }
     
-    /* 入力フィールド */
     input[type="text"],
     input[type="url"],
     input[type="email"],
     input[type="password"] {
-        font-size: 16px; /* ズーム防止 */
+        font-size: 16px;
         touch-action: manipulation;
     }
     
-    /* スクロール最適化 */
     #left-pane,
     #list-view {
         scroll-behavior: smooth;
     }
     
-    /* タッチ操作最適化 */
     * {
         -webkit-tap-highlight-color: transparent;
         -webkit-touch-callout: none;
@@ -736,7 +711,6 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
         user-select: auto;
     }
     
-    /* 安全エリア対応 */
     #app-container {
         padding-bottom: env(safe-area-inset-bottom);
     }
@@ -746,7 +720,6 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
     }
 }
 
-/* 極小画面（iPhone SE など） */
 @media (max-width: 375px) {
     html, body {
         font-size: 13px;
@@ -783,7 +756,6 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
     }
 }
 
-/* 横向き対応 */
 @media (max-width: 768px) and (orientation: landscape) {
     #left-pane {
         max-height: 35vh;
@@ -835,6 +807,9 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
 }
 
 .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     padding-bottom: 16px;
     border-bottom: 1px solid var(--border-color);
     margin-bottom: 16px;
@@ -846,12 +821,19 @@ header h1 { font-size: 2.2em; font-weight: 700; margin: 0; letter-spacing: -0.02
     color: var(--text-primary);
 }
 
+.modal-close-btn {
+    font-size: 1.5rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    line-height: 1;
+}
+
 .modal-body {
     margin: 0 0 12px;
     color: var(--text-secondary);
     line-height: 1.6;
     max-height: 400px;
-    overflow: auto;
+    overflow-y: auto;
 }
 
 .modal-footer {
@@ -1076,48 +1058,6 @@ button:disabled {
     border-color: var(--primary);
 }
 
-.label-select-popover {
-    padding: 12px;
-    width: 280px;
-}
-
-.label-select-popover h3 {
-    margin: 0 0 12px 0;
-    font-size: 1em;
-    font-weight: 600;
-}
-
-.label-select-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.label-select-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px;
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    transition: background-color 0.2s;
-}
-.label-select-item:hover {
-    background-color: var(--bg-hover);
-}
-
-.label-select-item input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    accent-color: var(--primary);
-}
-
-.label-select-item .label-color-dot {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-}
-
 /* データ管理セクション */
 .data-manager-section {
     margin-top: 16px;
@@ -1156,4 +1096,91 @@ button:disabled {
     width: 16px;
     height: 16px;
     accent-color: var(--primary);
+}
+
+/* 保存状態インジケータのスタイル */
+#save-status-indicator {
+    font-size: 0.85em;
+    font-weight: 500;
+    color: var(--text-secondary);
+    transition: opacity 0.3s ease-in-out;
+    opacity: 0; /* 初期状態では非表示 */
+    white-space: nowrap;
+}
+
+
+/* ★★★ ラベル編集モーダル専用スタイル ★★★ */
+#modal-label-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 16px;
+    max-height: 250px;
+    overflow-y: auto;
+    padding-right: 8px; /* スクロールバー用 */
+}
+
+.modal-label-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.modal-label-item:hover {
+    background-color: var(--bg-hover);
+}
+
+.modal-label-item input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary);
+    flex-shrink: 0;
+}
+
+.modal-label-item .label-color-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.modal-label-item .label-name {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.modal-divider {
+    height: 1px;
+    background: var(--border-color);
+    margin: 20px 0;
+}
+
+#modal-add-new-label-section h4 {
+    font-size: 1em;
+    font-weight: 600;
+    margin: 0 0 12px 0;
+    color: var(--text-primary);
+}
+
+#modal-add-new-label-section .form-row {
+    display: flex;
+    gap: 8px;
+}
+
+#modal-add-new-label-btn {
+    flex-shrink: 0;
+    width: 44px; /* タッチしやすいサイズ */
+    height: 44px;
+    padding: 0;
+    font-size: 1.5rem;
+    line-height: 1;
+}
+
+button.secondary {
+    background-color: #e5e5ea;
+    color: var(--text-primary);
 }
