@@ -1,38 +1,83 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="theme-color" content="#007aff">
     <title>PLINY // Prometheus Task Manager</title>
-    
+
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js'></script>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 
 </head>
+
 <body>
     <!-- 認証オーバーレイ -->
     <div id="auth-overlay">
+        <div class="auth-background">
+            <div class="auth-particles"></div>
+        </div>
         <div id="auth-container">
-            <h1>PLINYへようこそ</h1>
+            <div class="auth-header">
+                <div class="auth-logo">
+                    <i class="fas fa-rocket"></i>
+                    <h1>PLINY</h1>
+                </div>
+                <p class="auth-subtitle">Prometheus Task Manager</p>
+            </div>
             <p id="auth-message-area" class="auth-message"></p>
-            
+
             <!-- ログインフォーム -->
-            <form id="login-form" method="POST">
-                <input type="email" id="login-email" name="email" autocomplete="email" placeholder="メールアドレス" required>
-                <input type="password" id="login-password" name="password" autocomplete="current-password" placeholder="パスワード" required>
-                <button type="submit">ログイン</button>
+            <form id="login-form" method="POST" class="auth-form">
+                <div class="form-group">
+                    <div class="input-wrapper">
+                        <i class="fas fa-envelope"></i>
+                        <input type="email" id="login-email" name="email" autocomplete="email" placeholder="メールアドレス"
+                            required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <div class="input-wrapper">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" id="login-password" name="password" autocomplete="current-password"
+                            placeholder="パスワード" required>
+                    </div>
+                </div>
+                <button type="submit" class="auth-button">
+                    <span>ログイン</span>
+                    <i class="fas fa-arrow-right"></i>
+                </button>
                 <p class="auth-switch">アカウントをお持ちでないですか？ <a href="#" id="show-register-form">新規登録</a></p>
             </form>
 
             <!-- 新規登録フォーム -->
-            <form id="register-form" method="POST" style="display: none;">
-                <input type="email" id="register-email" name="email" autocomplete="email" placeholder="メールアドレス" required>
-                <input type="password" id="register-password" name="new-password" autocomplete="new-password" placeholder="パスワード (8文字以上)" required>
-                <button type="submit">登録する</button>
+            <form id="register-form" method="POST" class="auth-form" style="display: none;">
+                <div class="form-group">
+                    <div class="input-wrapper">
+                        <i class="fas fa-envelope"></i>
+                        <input type="email" id="register-email" name="email" autocomplete="email" placeholder="メールアドレス"
+                            required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <div class="input-wrapper">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" id="register-password" name="new-password" autocomplete="new-password"
+                            placeholder="パスワード (8文字以上)" required>
+                    </div>
+                </div>
+                <button type="submit" class="auth-button">
+                    <span>登録する</span>
+                    <i class="fas fa-user-plus"></i>
+                </button>
                 <p class="auth-switch">既にアカウントをお持ちですか？ <a href="#" id="show-login-form">ログイン</a></p>
             </form>
         </div>
@@ -40,133 +85,327 @@
 
     <div id="app-container" style="display: none;">
         <div id="loading-overlay" style="display: none;">
-            <div class="spinner"></div>
-            <span>読み込み中...</span>
+            <div class="loading-content">
+                <div class="loading-spinner"></div>
+                <span>読み込み中...</span>
+            </div>
         </div>
-        <!-- Left Pane: Controls -->
-        <div id="left-pane">
-            <header>
-                <div class="header-main">
+
+        <!-- サイドバー -->
+        <aside id="sidebar">
+            <div class="sidebar-header">
+                <div class="app-brand">
+                    <div class="brand-icon">
+                        <i class="fas fa-rocket"></i>
+                    </div>
                     <h1>PLINY</h1>
-                    <div id="user-info">
-                        <span id="user-email-display"></span>
-                        <button id="logout-btn" title="ログアウト">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-log-out">
-                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                                <polyline points="16 17 21 12 16 7"/>
-                                <line x1="21" y1="12" x2="9" y2="12"/>
-                            </svg>
+                </div>
+                <div class="user-section">
+                    <div class="user-info">
+                        <div class="user-avatar">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <div class="user-details">
+                            <span id="user-email-display"></span>
+                            <span class="user-status">オンライン</span>
+                        </div>
+                    </div>
+                    <button id="logout-btn" class="logout-button" title="ログアウト">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </button>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <h3>クイックアクション</h3>
+                    <div class="nav-buttons">
+                        <button id="undo-btn" class="nav-button" title="元に戻す (Ctrl+Z)" disabled>
+                            <i class="fas fa-undo"></i>
+                        </button>
+                        <button id="redo-btn" class="nav-button" title="やり直す (Ctrl+Y)" disabled>
+                            <i class="fas fa-redo"></i>
+                        </button>
+                        <button id="theme-toggle" class="nav-button" title="テーマ切り替え">
+                            <i class="fas fa-moon"></i>
                         </button>
                     </div>
                 </div>
-                <div id="global-actions">
-                    <span id="save-status-indicator"></span>
-                    <button id="undo-btn" title="元に戻す (Ctrl+Z)" disabled></button>
-                    <button id="redo-btn" title="やり直す (Ctrl+Y)" disabled></button>
+
+                <div class="nav-section">
+                    <h3>タスク管理</h3>
+                    <div class="nav-item active" data-view="list">
+                        <i class="fas fa-list"></i>
+                        <span>タスクリスト</span>
+                    </div>
+                    <div class="nav-item" data-view="calendar">
+                        <i class="fas fa-calendar-alt"></i>
+                        <span>カレンダー</span>
+                    </div>
+                </div>
+
+                <div class="nav-section">
+                    <h3>ツール</h3>
+                    <div class="nav-item" data-panel="labels">
+                        <i class="fas fa-tags"></i>
+                        <span>ラベル管理</span>
+                    </div>
+                    <div class="nav-item" data-panel="ai">
+                        <i class="fas fa-magic"></i>
+                        <span>AI アシスタント</span>
+                    </div>
+                    <div class="nav-item" data-panel="sync">
+                        <i class="fas fa-sync-alt"></i>
+                        <span>Google 連携</span>
+                    </div>
+                    <div class="nav-item" data-panel="data">
+                        <i class="fas fa-database"></i>
+                        <span>データ管理</span>
+                    </div>
+                </div>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div id="save-status-indicator" class="save-status"></div>
+            </div>
+        </aside>
+
+        <!-- メインコンテンツ -->
+        <main id="main-content">
+            <!-- ヘッダー -->
+            <header class="main-header">
+                <div class="header-left">
+                    <h2 id="view-title">タスクリスト</h2>
+                    <p class="view-description">タスクを管理して生産性を向上させましょう</p>
+                </div>
+                <div class="header-right">
+                    <button id="add-task-btn" class="primary-button">
+                        <i class="fas fa-plus"></i>
+                        <span>新しいタスク</span>
+                    </button>
                 </div>
             </header>
 
-            <div class="control-group">
-                <form id="task-form">
-                    <input type="text" id="task-input" placeholder="新しいタスクを追加..." required>
-                    <div class="form-divider"></div>
-                    <input type="text" id="task-due-date" placeholder="期間を選択" required>
-                    <div class="form-divider"></div>
-                    <div id="add-task-label-selector"></div>
-                    <button type="submit">タスクを登録する</button>
-                </form>
-            </div>
-            
-            <div class="control-group">
-                <div id="label-editor" class="accordion">
-                    <button type="button" class="accordion-toggle">
-                        <span>ラベルを編集</span>
-                        <span class="accordion-icon"></span>
-                    </button>
-                    <div class="accordion-content">
-                        <div id="label-editor-list">
-                            <!-- Dynamically filled by script.js -->
-                        </div>
-                        <div id="label-add-container">
-                            <!-- Dynamically filled by script.js -->
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="control-group">
-                <div id="ai-generator" class="accordion">
-                    <button type="button" class="accordion-toggle">
-                        <span>AIでタスクを生成 ✨</span>
-                        <span class="accordion-icon"></span>
-                    </button>
-                    <div class="accordion-content">
-                        <textarea id="gemini-prompt" placeholder="例: 「来週月曜にデザイン修正のタスクを追加して」
-例: 「『クライアントに提出』タスクを完了済にして」
-例: 「優先度:緊急という名前の赤いラベルを作成」"></textarea>
-                        <button id="gemini-trigger-btn">
-                            <span class="default-text">生成する</span>
-                            <div class="loading-indicator" style="display: none;">
-                                <div class="spinner"></div>
-                                <span>生成中...</span>
-                            </div>
+            <!-- コンテンツエリア -->
+            <div class="content-area">
+                <!-- タスク追加パネル -->
+                <div id="task-panel" class="content-panel active">
+                    <div class="panel-header">
+                        <h3>新しいタスクを追加</h3>
+                        <button class="panel-close">
+                            <i class="fas fa-times"></i>
                         </button>
                     </div>
-                </div>
-            </div>
-
-            <div class="control-group">
-                <div id="data-manager" class="accordion">
-                    <button type="button" class="accordion-toggle">
-                        <span>データ管理 🛠️</span>
-                        <span class="accordion-icon"></span>
-                    </button>
-                    <div class="accordion-content">
-                        <div class="data-manager-section">
-                            <h4>JSONデータエクスポート</h4>
-                            <button id="export-json-btn" class="button secondary">現在のデータをエクスポート</button>
-                        </div>
-                        <div class="data-manager-section">
-                             <h4>JSONからインポート</h4>
-                            <input type="file" id="import-json-file" accept=".json">
-                            <label>
-                                <input type="checkbox" id="merge-with-existing"> 既存データとマージ
-                            </label>
-                            <button id="import-json-btn" class="button primary">インポート</button>
-                        </div>
-                        <!-- ★★★ Googleカレンダー連携UIを追加 ★★★ -->
-                        <div class="data-manager-section">
-                            <h4>Googleカレンダー連携</h4>
-                            <div id="google-sync-status">
-                                <!-- 状態はスクリプトで動的に設定されます -->
+                    <form id="task-form" class="task-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>タスク名</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-tasks"></i>
+                                    <input type="text" id="task-input" placeholder="新しいタスクを追加..." required>
+                                </div>
                             </div>
-                            <button id="google-connect-btn" class="button secondary" style="display: none;">Googleカレンダーと連携</button>
-                            <button id="google-sync-btn" class="button primary" style="display: none;">今すぐ同期</button>
-                            <button id="google-disconnect-btn" class="button danger" style="display: none;">連携を解除</button>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>期間</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-calendar"></i>
+                                    <input type="text" id="task-due-date" placeholder="期間を選択" required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>ラベル</label>
+                                <div id="add-task-label-selector" class="label-selector"></div>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="submit-button">
+                                <i class="fas fa-plus"></i>
+                                <span>タスクを登録</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- ラベル管理パネル -->
+                <div id="labels-panel" class="content-panel">
+                    <div class="panel-header">
+                        <h3>ラベル管理</h3>
+                        <button class="panel-close">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="panel-content">
+                        <div id="label-editor-list" class="label-list"></div>
+                        <div id="label-add-container" class="label-add-section">
+                            <form id="new-label-form">
+                                <div class="form-row">
+                                    <div class="input-wrapper">
+                                        <i class="fas fa-tag"></i>
+                                        <input type="text" id="new-label-name" placeholder="新しいラベル名" required>
+                                    </div>
+                                    <button type="submit" class="add-button">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                </div>
+                            </form>
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
 
-        <!-- Right Pane: Content -->
-        <div id="right-pane">
-            <div id="right-pane-header">
-                <h2 id="view-title">タスクリスト</h2>
-                <div id="view-switcher">
-                    <button id="show-list-btn" class="active">リスト</button>
-                    <button id="show-calendar-btn">カレンダー</button>
+                <!-- AI アシスタントパネル -->
+                <div id="ai-panel" class="content-panel">
+                    <div class="panel-header">
+                        <h3>AI アシスタント</h3>
+                        <button class="panel-close">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="panel-content">
+                        <div class="ai-description">
+                            <i class="fas fa-magic"></i>
+                            <p>AIに指示を出してタスクを自動生成しましょう</p>
+                        </div>
+                        <div class="ai-examples">
+                            <h4>使用例</h4>
+                            <div class="example-list">
+                                <div class="example-item">
+                                    <i class="fas fa-lightbulb"></i>
+                                    <span>「来週月曜にデザイン修正のタスクを追加して」</span>
+                                </div>
+                                <div class="example-item">
+                                    <i class="fas fa-lightbulb"></i>
+                                    <span>「『クライアントに提出』タスクを完了済にして」</span>
+                                </div>
+                                <div class="example-item">
+                                    <i class="fas fa-lightbulb"></i>
+                                    <span>「優先度:緊急という名前の赤いラベルを作成」</span>
+                                </div>
+                            </div>
+                        </div>
+                        <form class="ai-form">
+                            <div class="form-group">
+                                <textarea id="gemini-prompt" placeholder="AIに指示を入力してください..." rows="4"></textarea>
+                            </div>
+                            <button id="gemini-trigger-btn" class="ai-button">
+                                <span class="default-text">
+                                    <i class="fas fa-magic"></i>
+                                    生成する
+                                </span>
+                                <div class="loading-indicator" style="display: none;">
+                                    <div class="spinner"></div>
+                                    <span>生成中...</span>
+                                </div>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Google 連携パネル -->
+                <div id="sync-panel" class="content-panel">
+                    <div class="panel-header">
+                        <h3>Google カレンダー連携</h3>
+                        <button class="panel-close">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="panel-content">
+                        <div class="sync-status">
+                            <div id="google-sync-status" class="status-card">
+                                <!-- 状態はスクリプトで動的に設定されます -->
+                            </div>
+                        </div>
+                        <div class="sync-actions">
+                            <button id="google-connect-btn" class="sync-button connect" style="display: none;">
+                                <i class="fab fa-google"></i>
+                                <span>Googleカレンダーと連携</span>
+                            </button>
+                            <button id="google-sync-btn" class="sync-button sync" style="display: none;">
+                                <i class="fas fa-sync-alt"></i>
+                                <span>今すぐ同期</span>
+                            </button>
+                            <button id="google-disconnect-btn" class="sync-button disconnect" style="display: none;">
+                                <i class="fas fa-unlink"></i>
+                                <span>連携を解除</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- データ管理パネル -->
+                <div id="data-panel" class="content-panel">
+                    <div class="panel-header">
+                        <h3>データ管理</h3>
+                        <button class="panel-close">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="panel-content">
+                        <div class="data-section">
+                            <h4>エクスポート</h4>
+                            <p>現在のデータをJSONファイルとしてダウンロードします</p>
+                            <button id="export-json-btn" class="data-button">
+                                <i class="fas fa-download"></i>
+                                <span>データをエクスポート</span>
+                            </button>
+                        </div>
+                        <div class="data-section">
+                            <h4>インポート</h4>
+                            <p>JSONファイルからデータをインポートします</p>
+                            <div class="import-form">
+                                <input type="file" id="import-json-file" accept=".json">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="merge-with-existing">
+                                    <span>既存データとマージ</span>
+                                </label>
+                                <button id="import-json-btn" class="data-button">
+                                    <i class="fas fa-upload"></i>
+                                    <span>インポート</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- タスクリストビュー -->
+                <div id="list-view" class="content-view active">
+                    <div class="view-header">
+                        <div class="view-stats">
+                            <div class="stat-item">
+                                <span class="stat-number" id="total-tasks">0</span>
+                                <span class="stat-label">総タスク</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-number" id="completed-tasks">0</span>
+                                <span class="stat-label">完了済み</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-number" id="pending-tasks">0</span>
+                                <span class="stat-label">未完了</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="task-list-container" class="task-list"></div>
+                </div>
+
+                <!-- カレンダービュー -->
+                <div id="calendar-view" class="content-view">
+                    <div id="calendar-container" class="calendar-wrapper"></div>
                 </div>
             </div>
-            <main id="list-view"><div id="task-list-container"></div></main>
-            <main id="calendar-view" style="display: none;"><div id="calendar-container"></div></main>
-        </div>
+        </main>
     </div>
-    
+
     <!-- 競合解決モーダル -->
     <div id="conflict-modal" class="modal-overlay" style="display: none;">
         <div class="modal-content">
             <div class="modal-header">
+                <div class="modal-icon">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
                 <h3>データが更新されました</h3>
             </div>
             <div class="modal-body">
@@ -174,7 +413,7 @@
                 <p>最新のデータを読み込みましたので、内容を確認し、再度操作を行ってください。</p>
             </div>
             <div class="modal-footer">
-                <button id="conflict-modal-ok-btn" class="button">OK</button>
+                <button id="conflict-modal-ok-btn" class="modal-button">OK</button>
             </div>
         </div>
     </div>
@@ -184,10 +423,15 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3>ラベルを編集</h3>
-                <span id="label-editor-modal-close" class="modal-close-btn">×</span>
+                <button id="label-editor-modal-close" class="modal-close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
             </div>
             <div class="modal-body">
-                <p>タスク: <strong id="modal-task-name"></strong></p>
+                <div class="task-info">
+                    <i class="fas fa-tasks"></i>
+                    <span>タスク: <strong id="modal-task-name"></strong></span>
+                </div>
                 <div id="modal-label-list" class="modal-label-list">
                     <!-- ラベル一覧がここに動的に生成される -->
                 </div>
@@ -196,19 +440,22 @@
                     <h4>新しいラベルを追加</h4>
                     <div class="form-row">
                         <input type="text" id="modal-new-label-name" placeholder="新しいラベル名">
-                        <button id="modal-add-new-label-btn">+</button>
+                        <button id="modal-add-new-label-btn">
+                            <i class="fas fa-plus"></i>
+                        </button>
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button id="label-editor-modal-cancel" class="button secondary">キャンセル</button>
-                <button id="label-editor-modal-save" class="button primary">保存</button>
+                <button id="label-editor-modal-cancel" class="modal-button secondary">キャンセル</button>
+                <button id="label-editor-modal-save" class="modal-button primary">保存</button>
             </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ja.js"></script>
-    <script src="script.js"></script>
+    <script type="module" src="src/main.js"></script>
 </body>
+
 </html>

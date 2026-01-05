@@ -1,4 +1,4 @@
-# wrangler.toml の全内容 (最終版)
+# wrangler.toml の全内容 (Pages + Functions 最終完成版)
 
 # Cloudflareのダッシュボードで表示されるプロジェクト名
 name = "pliny-v2"
@@ -8,11 +8,12 @@ compatibility_date = "2024-01-01"
 
 # 静的サイトとAPI(_worker.js)が格納されているディレクトリ
 pages_build_output_dir = "."
-[[kv_namespaces]]
-
-binding = "PLINY_KV"
-id = "dabbf2c6980d4a428b08727ca82b5e41"
 
 # Workerが自分自身のURLを知るための環境変数
 [vars]
 ROOT_URL = "https://pliny-v2.pages.dev"
+
+
+[[pages.kv_namespaces]]
+binding = "PLINY_KV"
+id = "dabbf2c6980d4a428b08727ca82b5e41wrangler pages deploy ." 

@@ -171,11 +171,30 @@ function initializeApp() {
   document.getElementById("auth-overlay").style.display = "none";
   document.getElementById("app-container").style.display = "flex";
   document.getElementById("user-email-display").textContent = userEmail;
+  
+  // テーマの初期化
+  initializeTheme();
+  
   initializeFlatpickr();
   initializeCalendar();
-  initializeIcons();
   bindGlobalEvents();
   loadData();
+}
+
+function initializeTheme() {
+  const savedTheme = localStorage.getItem('pliny_theme') || 'light';
+  document.documentElement.setAttribute('data-theme', savedTheme);
+  
+  // テーマトグルボタンのアイコンを設定
+  const themeToggle = document.getElementById('theme-toggle');
+  if (themeToggle) {
+    const icon = themeToggle.querySelector('i');
+    if (savedTheme === 'dark') {
+      icon.className = 'fas fa-sun';
+    } else {
+      icon.className = 'fas fa-moon';
+    }
+  }
 }
 
 function initializeFlatpickr() {
@@ -191,10 +210,7 @@ function initializeFlatpickr() {
   });
 }
 
-function initializeIcons() {
-  document.getElementById("undo-btn").innerHTML = ICONS.undo;
-  document.getElementById("redo-btn").innerHTML = ICONS.redo;
-}
+// 不要になった関数を削除
 
 function initializeCalendar() {
   const calendarContainer = document.getElementById("calendar-container");
@@ -483,6 +499,10 @@ function renderTaskList() {
   const container = document.getElementById("task-list-container");
   if (!container) return;
   container.innerHTML = "";
+  
+  // 統計情報を更新
+  updateTaskStats();
+  
   const map = new Map(tasks.map((t) => [t.id, { ...t, children: [] }]));
   const roots = [];
   map.forEach((task) => {
@@ -503,26 +523,29 @@ function renderTaskList() {
     el.className = "task-node";
     el.style.setProperty("--level", level);
     el.innerHTML = `
-        <div class="task-card ${node.completed ? "completed" : ""} ${labelColor !== "transparent" ? "has-label-color" : ""}" data-task-id="${node.id}" draggable="true" style="--label-color: ${labelColor};">
-            <div class="task-card-main">
-                <div class="task-toggle ${hasChildren ? "" : "hidden"} ${isCollapsed ? "" : "collapsed"}" data-action="toggle">${ICONS.chevron}</div>
-                <div class="task-content-wrapper">
-                    <span class="task-text">${(node.text || "").replace(/</g, "&lt;")}</span>
-                    <div class="task-meta">
-                        <div class="task-labels">${(node.labelIds || [])
-                          .map((id) => labels.find((l) => l.id.toString() === id.toString()))
-                          .filter(Boolean)
-                          .sort((a, b) => (a.priority || 99) - (b.priority || 99))
-                          .map((l) => `<span class="task-label-badge">${l.name}</span>`)
-                          .join("")}</div>
-                        <span class="task-due-date">${formatDueDate(node.startDate, node.endDate)}</span>
-                    </div>
+        <div class="task-card ${node.completed ? "completed" : ""}" data-task-id="${node.id}" draggable="true">
+            <div class="task-content">
+                <div class="task-text">${(node.text || "").replace(/</g, "&lt;")}</div>
+                <div class="task-meta">
+                    <div class="task-labels">${(node.labelIds || [])
+                      .map((id) => labels.find((l) => l.id.toString() === id.toString()))
+                      .filter(Boolean)
+                      .sort((a, b) => (a.priority || 99) - (b.priority || 99))
+                      .map((l) => `<span class="task-label-badge" style="background-color: ${l.color}20; color: ${l.color}; border: 1px solid ${l.color}40;">${l.name}</span>`)
+                      .join("")}</div>
+                    <span class="task-due-date">${formatDueDate(node.startDate, node.endDate)}</span>
                 </div>
             </div>
             <div class="task-actions">
-                <button data-action="edit-labels" title="ラベルを編集">${ICONS.label}</button>
-                <button data-action="complete" title="${node.completed ? "未完了" : "完了"}">${ICONS.check}</button>
-                <button data-action="delete" title="削除">${ICONS.delete}</button>
+                <button data-action="edit-labels" title="ラベルを編集" class="action-btn">
+                    <i class="fas fa-tags"></i>
+                </button>
+                <button data-action="complete" title="${node.completed ? "未完了" : "完了"}" class="action-btn ${node.completed ? 'complete' : ''}">
+                    <i class="fas fa-check"></i>
+                </button>
+                <button data-action="delete" title="削除" class="action-btn delete">
+                    <i class="fas fa-trash"></i>
+                </button>
             </div>
         </div>`;
     parent.appendChild(el);
@@ -535,6 +558,16 @@ function renderTaskList() {
   roots
     .sort((a, b) => new Date(a.startDate) - new Date(b.startDate))
     .forEach((root) => draw(root, container, 1));
+}
+
+function updateTaskStats() {
+  const totalTasks = tasks.length;
+  const completedTasks = tasks.filter(t => t.completed).length;
+  const pendingTasks = totalTasks - completedTasks;
+  
+  document.getElementById('total-tasks').textContent = totalTasks;
+  document.getElementById('completed-tasks').textContent = completedTasks;
+  document.getElementById('pending-tasks').textContent = pendingTasks;
 }
 
 function renderCalendar() {
@@ -804,16 +837,22 @@ function bindGlobalEvents() {
     if (!e.target.closest('.popover, #label-editor-modal .modal-content')) closeAllPopovers();
   });
   document.getElementById("logout-btn").addEventListener("click", handleLogout);
-  bindAccordionEvents();
+  
+  // 新しいUIのイベントハンドラー
+  setupSidebarEvents();
+  setupPanelEvents();
+  setupViewEvents();
+  setupThemeToggle();
+  
+  // 既存のイベントハンドラー
   setupTaskFormEvents();
   setupTaskListEvents();
-  setupViewSwitcherEvents();
   setupUndoRedoEvents();
   setupAiEvents();
   setupDataManagerEvents();
   setupWindowEvents();
   setupLabelEditorModalEvents();
-  setupGoogleSyncEvents(); // ★★★ Google連携用のイベントリスナーをセットアップ
+  setupGoogleSyncEvents();
 }
 
 function setupTaskFormEvents() {
@@ -1016,15 +1055,131 @@ function setupGoogleSyncEvents() {
     document.getElementById('google-disconnect-btn')?.addEventListener('click', handleGoogleDisconnect);
 }
 
+// ===============================================
+// 新しいUIのイベントハンドラー
+// ===============================================
+
+function setupSidebarEvents() {
+    // ナビゲーションアイテムのクリック
+    document.querySelectorAll('.nav-item[data-view]').forEach(item => {
+        item.addEventListener('click', () => {
+            const view = item.dataset.view;
+            switchView(view);
+            
+            // アクティブ状態を更新
+            document.querySelectorAll('.nav-item[data-view]').forEach(nav => nav.classList.remove('active'));
+            item.classList.add('active');
+        });
+    });
+
+    // パネルアイテムのクリック
+    document.querySelectorAll('.nav-item[data-panel]').forEach(item => {
+        item.addEventListener('click', () => {
+            const panel = item.dataset.panel;
+            openPanel(panel);
+        });
+    });
+
+    // 新しいタスクボタン
+    document.getElementById('add-task-btn')?.addEventListener('click', () => {
+        openPanel('task');
+    });
+}
+
+function setupPanelEvents() {
+    // パネルを閉じるボタン
+    document.querySelectorAll('.panel-close').forEach(btn => {
+        btn.addEventListener('click', () => {
+            closeAllPanels();
+        });
+    });
+}
+
+function setupViewEvents() {
+    // ビューの切り替え
+    document.querySelectorAll('.nav-item[data-view]').forEach(item => {
+        item.addEventListener('click', () => {
+            const view = item.dataset.view;
+            switchView(view);
+        });
+    });
+}
+
+function setupThemeToggle() {
+    const themeToggle = document.getElementById('theme-toggle');
+    if (themeToggle) {
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('pliny_theme', newTheme);
+            
+            // アイコンを更新
+            const icon = themeToggle.querySelector('i');
+            if (newTheme === 'dark') {
+                icon.className = 'fas fa-sun';
+            } else {
+                icon.className = 'fas fa-moon';
+            }
+        });
+    }
+}
+
+function openPanel(panelName) {
+    // すべてのパネルを閉じる
+    closeAllPanels();
+    
+    // 指定されたパネルを開く
+    const panel = document.getElementById(`${panelName}-panel`);
+    if (panel) {
+        panel.classList.add('active');
+    }
+}
+
+function closeAllPanels() {
+    document.querySelectorAll('.content-panel').forEach(panel => {
+        panel.classList.remove('active');
+    });
+}
+
+function switchView(viewName) {
+    // すべてのビューを非アクティブにする
+    document.querySelectorAll('.content-view').forEach(view => {
+        view.classList.remove('active');
+    });
+    
+    // 指定されたビューをアクティブにする
+    const view = document.getElementById(`${viewName}-view`);
+    if (view) {
+        view.classList.add('active');
+        
+        // ビュータイトルを更新
+        const viewTitle = document.getElementById('view-title');
+        const viewDescription = document.querySelector('.view-description');
+        
+        if (viewName === 'list') {
+            viewTitle.textContent = 'タスクリスト';
+            viewDescription.textContent = 'タスクを管理して生産性を向上させましょう';
+        } else if (viewName === 'calendar') {
+            viewTitle.textContent = 'カレンダー';
+            viewDescription.textContent = 'スケジュールを視覚的に管理しましょう';
+        }
+        
+        // カレンダーのサイズを更新
+        if (viewName === 'calendar' && calendar) {
+            setTimeout(() => {
+                calendar.updateSize();
+            }, 100);
+        }
+    }
+}
+
 function setupAiEvents() {
   const btn = document.getElementById("gemini-trigger-btn");
   if (btn) btn.addEventListener("click", handleAiInteraction);
 }
 
-function setupViewSwitcherEvents() {
-  document.getElementById("show-list-btn")?.addEventListener("click", () => switchView("list"));
-  document.getElementById("show-calendar-btn")?.addEventListener("click", () => switchView("calendar"));
-}
+// 古いビュー切り替えイベントは新しいUIでは使用しない
 
 function setupUndoRedoEvents() {
   document.getElementById("undo-btn")?.addEventListener("click", handleUndo);
@@ -1050,44 +1205,9 @@ function setupWindowEvents() {
   });
 }
 
-function bindAccordionEvents() {
-  const leftPane = document.getElementById("left-pane");
-  if (!leftPane) return;
-  leftPane.addEventListener("click", function (e) {
-    const toggleButton = e.target.closest(".accordion-toggle");
-    if (!toggleButton) return;
-    const currentAccordion = toggleButton.closest(".accordion");
-    if (!currentAccordion) return;
-    const isActive = currentAccordion.classList.toggle("active");
-    const content = currentAccordion.querySelector(".accordion-content");
-    content.style.display = isActive ? "flex" : "none";
-  });
-}
+// 古いアコーディオンイベントは新しいUIでは使用しない
 
-function switchView(view) {
-  const listView = document.getElementById("list-view");
-  const calendarView = document.getElementById("calendar-view");
-  const listBtn = document.getElementById("show-list-btn");
-  const calendarBtn = document.getElementById("show-calendar-btn");
-  const viewTitle = document.getElementById("view-title");
-
-  if (view === "list") {
-    listView.style.display = "block";
-    calendarView.style.display = "none";
-    listBtn.classList.add("active");
-    calendarBtn.classList.remove("active");
-    viewTitle.textContent = "タスクリスト";
-  } else {
-    listView.style.display = "none";
-    calendarView.style.display = "flex";
-    listBtn.classList.remove("active");
-    calendarBtn.classList.add("active");
-    viewTitle.textContent = "カレンダー";
-    if (calendar) {
-      calendar.updateSize();
-    }
-  }
-}
+// 古いswitchView関数は新しいUIでは使用しない
 
 async function handleEventDrop({ event }) {
   const task = tasks.find((t) => t.id === event.id);

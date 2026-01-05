@@ -1,0 +1,114 @@
+/* ===============================================
+ * Responsive Design & Utilities
+ * =============================================== */
+
+@media (max-width: 1024px) {
+    :root {
+        --sidebar-width: 240px;
+    }
+
+    #sidebar {
+        position: fixed;
+        left: -100%;
+        transition: var(--transition-normal);
+        z-index: 200;
+    }
+
+    #sidebar.open {
+        left: 0;
+    }
+
+    #main-content {
+        margin-left: 0;
+    }
+}
+
+@media (max-width: 768px) {
+    :root {
+        --sidebar-width: 100%;
+        --header-height: 60px;
+    }
+
+    #app-container {
+        flex-direction: column;
+    }
+
+    #sidebar {
+        position: fixed;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100vh;
+        z-index: 200;
+    }
+
+    #sidebar.open {
+        left: 0;
+    }
+
+    .main-header {
+        padding: 0 var(--space-4);
+    }
+
+    .header-left h2 {
+        font-size: var(--font-size-xl);
+    }
+
+    .view-description {
+        display: none;
+    }
+
+    .content-panel,
+    .content-view {
+        position: relative;
+        transform: none;
+    }
+
+    .panel-content {
+        height: auto;
+        max-height: 60vh;
+    }
+
+    .view-stats {
+        gap: var(--space-4);
+    }
+
+    .stat-item {
+        flex: 1;
+    }
+}
+
+/* Utility Classes */
+.hidden {
+    display: none !important;
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.slide-in {
+    animation: slideIn 0.3s ease-in-out;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+    }
+
+    to {
+        transform: translateX(0);
+    }
+}
